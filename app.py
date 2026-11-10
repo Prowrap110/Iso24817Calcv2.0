@@ -1,0 +1,186 @@
+"""PROWRAP single-repair calculator v2.0; shares evaluator with CalcBatch."""
+import re
+import pandas as pd
+import streamlit as st
+from prowrap_v2 import __version__
+from prowrap_v2.schema import FIELD_DEFINITIONS, SECTIONS, DEFECT_FIELDS, LOAD_FIELDS, default_case
+from prowrap_v2.ui_logic import (
+    OPENING_FIELDS, active_fields, case_for_calculation, uses_measured_defects,
+)
+from prowrap_v2.materials import get_material
+from prowrap_v2.engine import evaluate_case, expand_population
+from prowrap_v2.examples import example_case
+from prowrap_v2.reporting import report_pdf, report_json
+
+st.set_page_config(page_title='PROWRAP Calculator v2.0',page_icon='◉',layout='wide')
+st.markdown('''<style>
+.block-container {max-width:1180px;padding-top:2rem;padding-bottom:4rem;}
+h1,h2,h3 {color:#142c40;} [data-testid="stMetric"] {border:1px solid #dbe3ea;border-radius:8px;padding:14px;}
+[data-testid="stExpander"] {border-color:#dbe3ea;} .stButton button[kind="primary"] {background:#184d72;}
+</style>''',unsafe_allow_html=True)
+
+
+def clear_result(): st.session_state.pop('calculation_results',None)
+def replace_case(case):
+    for key in FIELD_DEFINITIONS: st.session_state['case_'+key]=case.get(key)
+    for key in ['defect_editor','load_editor','calculation_results']: st.session_state.pop(key,None)
+    st.session_state['defect_records']=[];st.session_state['load_records']=[]
+
+def current_case(): return {k:st.session_state.get('case_'+k,v['default']) for k,v in FIELD_DEFINITIONS.items()}
+
+for key,value in default_case().items():
+    st.session_state.setdefault('case_'+key,value)
+st.session_state.setdefault('defect_records',[])
+st.session_state.setdefault('load_records',[])
+
+st.title('PROWRAP Calculator v2.0')
+st.caption('ISO 24817:2026 · Single repair · PRW110+ material basis')
+left,right=st.columns([3,2])
+with left: st.write('Enter the repair conditions, review the calculated checks, and download the calculation record.')
+with right:
+    a,b=st.columns(2)
+    a.button('New calculation',key='clear',on_click=lambda:replace_case(default_case()),width='stretch')
+    b.button('Load example',key='example',on_click=lambda:replace_case(example_case()),width='stretch')
+
+HELP={
+ 'initial_service_life_years':'Initial service life may be shorter than design life. The design equations use design life.',
+ 'min_pressure_bar':'Minimum design pressure for the installation/disbond assessment. Enter an explicit zero if depressurization is credible.',
+ 'through_wall':'Includes a hole or leak that has already been temporarily sealed.',
+ 'zone_length_mm':'Full outer-to-outer span to be covered, distinct from individual pit length.',
+ 'load_basis':'Pressure-only includes the pressure end load. Select additional loads for axial force, shear, bending or torsion.',
+ 'cycles':'Total expected cycles over the design life, not cycles per year.',
+ 'effective_diameter_mm':'Assessor-defined effective opening, covering current and future pressurized/unbonded footprint, filler and stopgap.',
+ 'qualified_wall_loss_pct':'Maximum wall-loss envelope from the referenced system qualification used for substrate credit.',
+ 'cure_basis':'Report schedule uses the ISO 9.3 temperature-factor fallback. A confirmed qualified schedule requires its procedure reference.',
+ 'thicker_repair_limit_mm':'Leave blank to apply the normal min(D/6, 25 mm) limit. A larger limit requires its specific supporting test reference.',
+}
+
+def widget(key):
+    f=FIELD_DEFINITIONS[key];kw=dict(key='case_'+key,on_change=clear_result,help=HELP.get(key))
+    if f['kind']=='text': st.text_input(f['label'],**kw)
+    elif f['kind']=='select': st.selectbox(f['label'],f['choices'],**kw)
+    elif f['kind']=='bool': st.checkbox(f['label'],**kw)
+    else:
+        value=st.session_state.get('case_'+key)
+        if value is not None:
+            value=float(value)
+            st.session_state['case_'+key]=value
+        fmt='%.8f' if key=='steel_cte' else '%.3f'
+        st.number_input(f['label'],value=None,format=fmt,step=0.000001 if key=='steel_cte' else 1.0,**kw)
+
+def editor_records(fields, config, key):
+    # Streamlit applies the current editor changes to this stable source on each run.
+    edited = st.data_editor(
+        pd.DataFrame(columns=fields), num_rows="dynamic", hide_index=True, key=key,
+        on_change=clear_result, column_config=config, width="stretch",
+    )
+    return edited.astype(object).where(pd.notna(edited), None).to_dict("records")
+
+
+for section, title in SECTIONS.items():
+    with st.expander(f"{section}. {title}", expanded=section in (1, 2, 3, 4)):
+        case = current_case()
+        visible = active_fields(case)
+        cols = st.columns(2)
+        keys = [key for key in visible if FIELD_DEFINITIONS[key]["section"] == section and key not in OPENING_FIELDS]
+        for index, key in enumerate(keys):
+            with cols[index % 2]:
+                widget(key)
+        case = current_case()
+        if section == 2:
+            mat = get_material(case["product"])
+            st.caption(f"{case['product']} · {mat['ply_mm']:.2f} mm/ply · Hoop modulus {mat['ec_mpa']:,.0f} MPa · Axial modulus {mat['ea_mpa']:,.0f} MPa · Tg reference {mat['tg_c']:.2f}°C")
+        if section == 5:
+            independent = case["mechanism"] == "Corrosion" and case["defect_location"] == "External" and case["defect_mode"] != "Actual / combined"
+            if independent:
+                wall = case.get("wall_mm")
+                threshold = f"Current threshold: {3 * wall:.2f} mm." if wall else "Enter nominal wall to display the threshold."
+                st.caption(f"Independent-defect rule: separation exceeds 3t. {threshold}")
+                if case["defect_mode"] == "Independent 10x10":
+                    st.info("Each assessed pit is 10 × 10 mm. Enter the overall zone span separately and confirm the inspection/grouping basis.")
+            if uses_measured_defects(case):
+                config = {
+                    "repair_id": st.column_config.TextColumn("Repair ID"),
+                    "defect_id": st.column_config.TextColumn("Defect ID"),
+                    "length_mm": st.column_config.NumberColumn("Axial length [mm]"),
+                    "width_mm": st.column_config.NumberColumn("Circumferential width [mm]"),
+                    "remaining_wall_mm": st.column_config.NumberColumn("Remaining wall [mm]"),
+                    "separation_mm": st.column_config.NumberColumn("Minimum edge gap [mm]"),
+                    "independence_confirmed": st.column_config.CheckboxColumn("Noninteraction confirmed"),
+                }
+                st.session_state["defect_records"] = editor_records(DEFECT_FIELDS, config, "defect_editor")
+            else:
+                st.session_state["defect_records"] = []
+            if case["mechanism"] == "Dent no-crack" and case["dent_mode"] == "60/40 population":
+                st.info("Population estimate: 60% at 600 × 250 mm; 40% at 300 × 500 mm; depth 6% of OD. Select Estimate and enter the total count in section 9.")
+            opening_fields = [key for key in active_fields(case, st.session_state["defect_records"]) if key in OPENING_FIELDS]
+            if opening_fields:
+                st.caption("Type B includes structural hoop and axial checks plus the effective opening sealing calculation.")
+                cols = st.columns(2)
+                for index, key in enumerate(opening_fields):
+                    with cols[index % 2]:
+                        widget(key)
+        if section == 6:
+            with st.expander("Additional load cases (optional)"):
+                st.caption("Base conditions are always checked. Each added case overrides only its populated fields; use the same Repair ID.")
+                config = {
+                    "repair_id": st.column_config.TextColumn("Repair ID"),
+                    "load_id": st.column_config.TextColumn("Load case ID"),
+                }
+                column_type = {
+                    "bool": st.column_config.CheckboxColumn,
+                    "number": st.column_config.NumberColumn,
+                }
+                for key in LOAD_FIELDS:
+                    if key not in config:
+                        field = FIELD_DEFINITIONS[key]
+                        config[key] = column_type.get(field["kind"], st.column_config.TextColumn)(field["label"])
+                st.session_state["load_records"] = editor_records(LOAD_FIELDS, config, "load_editor")
+
+case = case_for_calculation(current_case(), st.session_state["defect_records"])
+if st.button("Calculate repair", key="calculate", type="primary", width="stretch"):
+    records=[]
+    try:
+        for item in expand_population(case):
+            defects=st.session_state['defect_records'];loads=st.session_state['load_records']
+            if item['repair_id']!=case['repair_id']:
+                defects=[dict(row,repair_id=item['repair_id']) for row in defects]
+                loads=[dict(row,repair_id=item['repair_id']) for row in loads]
+            records.append(evaluate_case(item,defects=defects,loads=loads))
+    except (ValueError,TypeError,KeyError,ArithmeticError) as exc:
+        records=[dict(repair_id=case['repair_id'],status='INPUT_ERROR',issues=[str(exc)],inputs=case,results={},checks=[],details={})]
+    st.session_state['calculation_results']=records
+
+if st.session_state.get('calculation_results'):
+    st.divider();st.header('Calculation results')
+    records=st.session_state['calculation_results']
+    for index,result in enumerate(records):
+        status=result['status'];vals=result.get('results',{});valid=status in ('CALCULATED','ESTIMATE')
+        if len(records)>1: st.subheader(result['repair_id'])
+        if valid:
+            (st.info if status=='ESTIMATE' else st.success)(status+' · Calculated checks completed. Review the record with the project work pack.')
+            a,b,c=st.columns(3)
+            a.metric('Laminate layers',str(vals['installed_plies']))
+            b.metric('Laminate thickness',f"{vals['installed_thickness_mm']:.2f} mm")
+            c.metric('Total repair length',f"{vals['total_repair_length_mm']:.1f} mm")
+            a,b,c=st.columns(3)
+            a.metric('Fabric total',f"{vals['fabric_area_m2']:.2f} m²")
+            b.metric('Laminate epoxy total',f"{vals['laminate_epoxy_kg']:.2f} kg")
+            c.metric('Putty total',f"{vals['putty_kg']:.2f} kg")
+            st.write(f"Total fabric bands: **{vals['count_500']} × 500 mm** and **{vals['count_300']} × 300 mm**. Total epoxy: **{vals['total_epoxy_kg']:.2f} kg**. Quantity: **{vals.get('quantity',1):g}**.")
+        else: st.error(status+' · '+ ' '.join(result.get('issues',[])))
+        if result.get('checks'):
+            with st.expander('Check results',expanded=not valid):st.dataframe(pd.DataFrame(result['checks']),hide_index=True,width='stretch')
+        with st.expander('Calculation detail and effective inputs'):
+            st.json({'inputs':result.get('inputs',{}),'details':result.get('details',{})},expanded=False)
+        name=re.sub(r'[^A-Za-z0-9_.-]+','_',str(result['repair_id'] or 'repair'))
+        a,b=st.columns(2)
+        a.download_button('Download PDF report',report_pdf(result),file_name=f'PROWRAP_v2_{name}.pdf',mime='application/pdf',key=f'pdf{index}',width='stretch')
+        b.download_button('Download calculation data',report_json(result),file_name=f'PROWRAP_v2_{name}.json',mime='application/json',key=f'json{index}',width='stretch')
+    if len(records)>1:
+        eligible=[r for r in records if r['status'] in ('CALCULATED','ESTIMATE')]
+        if len(eligible)==len(records):
+            st.subheader('Population material totals')
+            st.write({label:round(sum(r['results'][key] for r in eligible),3) for label,key in [('Fabric [m²]','fabric_area_m2'),('Laminate epoxy [kg]','laminate_epoxy_kg'),('Putty [kg]','putty_kg'),('Total epoxy [kg]','total_epoxy_kg')]})
+        else:st.warning('Population totals are unavailable until all groups have valid calculation results.')
+st.caption(f'PROWRAP · Version {__version__} · ISO 24817:2026 calculation record for engineering review')

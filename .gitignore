@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+.superpowers/
+.DS_Store
+.streamlit/secrets.toml
+
+# Local design-session working documents
+docs/superpowers/
