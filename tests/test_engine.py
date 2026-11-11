@@ -76,7 +76,7 @@ def test_unknown_cycle_bounds_and_invalid_linked_values():
 def test_annex_c_and_b31g_gates():
     c=valid_case();c.update(substrate_route='Substrate sharing',ffs_method='Modified B31G',allowable_stress_mpa=200,assessed_axial_capacity_kn=0,ffs_ref='FFS1',material_grade='API 5L X52',design_code='ASME B31.8')
     assert evaluate_case(c)['status']=='ENGINEERING_HOLD'
-    c.update(qualified_wall_loss_pct=60,qualification_ref='C1')
+    c.update(qualified_wall_loss_pct=60,qualification_ref='C1',original_design_factor=.72)
     r=evaluate_case(c);assert r['status']=='CALCULATED',r
     c['smts_mpa']=None
     assert evaluate_case(c)['status']=='ENGINEERING_HOLD'
