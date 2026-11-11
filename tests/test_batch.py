@@ -75,6 +75,63 @@ def test_preview_preserves_override_precedence_and_zero(batch):
     assert repair.issues == []
 
 
+def test_line_quantity_is_visible_next_to_line_id(batch):
+    book = load_workbook(BytesIO(batch.template_workbook()))
+    sheet = book["Line Defaults"]
+    assert [sheet.cell(3, col).value for col in (1, 2)] == ["line_id", "quantity"]
+    assert sheet["B4"].value == "Number of identical repairs"
+    assert sheet.column_dimensions["B"].hidden is False
+    assert [cell.value for cell in sheet[3]].count("quantity") == 1
+
+
+@pytest.mark.parametrize("legacy_order", [False, True])
+def test_line_quantity_inherits_and_scales_materials_once(batch, legacy_order):
+    from prowrap_v2.schema import FIELD_DEFINITIONS
+
+    book = _inputs(batch)
+    _set_defaults(book, quantity=1)
+    _add(book, "Line Defaults", line_id="A", quantity=7)
+    _add(book, "Repair Cases", repair_id="INHERITED", line_id="A")
+    _add(book, "Repair Cases", row=6, repair_id="OVERRIDE", line_id="A", quantity=2)
+    _add(book, "Repair Cases", row=7, repair_id="ONE")
+    if legacy_order:
+        # Pre-revision files keep quantity near the end of Line Defaults. The
+        # parser must continue matching field keys rather than column positions.
+        old_fields = ("line_id",) + tuple(
+            key for key in batch.COMMON_FIELDS if FIELD_DEFINITIONS[key]["section"] in (3, 4, 6)
+        ) + tuple(
+            key for key in batch.COMMON_FIELDS if FIELD_DEFINITIONS[key]["section"] not in (3, 4, 6)
+        )
+        sheet = book["Line Defaults"]
+        columns = {sheet.cell(3, col).value: [sheet.cell(row, col).value for row in range(3, 15)]
+                   for col in range(1, sheet.max_column + 1)}
+        for col, key in enumerate(old_fields, 1):
+            for row, value in enumerate(columns[key], 3):
+                sheet.cell(row, col).value = value
+        assert sheet["CX3"].value == "quantity"
+    prepared = batch.prepare_workbook(_pack(book))
+    assert [repair.case["quantity"] for repair in prepared.repairs] == [7, 2, 1]
+    assert prepared.repairs[0].origins["quantity"] == "Line Defaults · A"
+    assert prepared.repairs[1].origins["quantity"] == "Repair Cases · row 6"
+    output, results = batch.calculate_batch(prepared)
+    assert all(result["status"] == "CALCULATED" for result in results)
+    one = results[2]["results"]
+    for result, quantity in zip(results, (7, 2, 1)):
+        quantities = result["results"]
+        assert quantities["quantity"] == quantity
+        for key in ("fabric_area_m2", "laminate_epoxy_kg", "putty_kg", "total_epoxy_kg", "count_500", "count_300"):
+            assert quantities[key] == pytest.approx(one[key] * quantity)
+        for key in ("installed_plies", "installed_thickness_mm", "total_repair_length_mm"):
+            assert quantities[key] == one[key]
+    exported = load_workbook(BytesIO(output), data_only=True)
+    summary = exported["Summary and Cost"]
+    assert summary["C5"].value == 10
+    assert summary["D5"].value == pytest.approx(one["fabric_area_m2"] * 10)
+    sheet = exported["Results"]
+    quantity_col = next(cell.column for cell in sheet[4] if cell.value == "Identical repairs")
+    assert [sheet.cell(row, quantity_col).value for row in range(5, 8)] == [7, 2, 1]
+
+
 def test_linked_measured_defects_and_loads_match_single_evaluator(batch):
     from prowrap_v2.engine import evaluate_case
 
