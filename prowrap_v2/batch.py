@@ -252,13 +252,16 @@ def template_workbook():
         for key in COMMON_FIELDS:
             if FIELD_DEFINITIONS[key]["section"] != section:
                 continue
-            _write(setup, row, (_label(key), None, key, _setup_note(key)))
+            default = FIELD_DEFINITIONS[key]["default"]
+            if isinstance(default, bool):
+                default = "Yes" if default else "No"
+            _write(setup, row, (_label(key), None, key, default))
             _setup_cell(setup, row, key)
             row += 1
     _header(setup, row, ("Commercial rates · optional", None, None, None))
     for key in RATE_FIELDS:
         row += 1
-        _write(setup, row, (_label(key), None, key, "Enter all three values to calculate material cost."))
+        _write(setup, row, (_label(key), None, key, None))
         _setup_cell(setup, row, key)
     setup.freeze_panes = "B10"
     setup.column_dimensions["A"].width = 54
