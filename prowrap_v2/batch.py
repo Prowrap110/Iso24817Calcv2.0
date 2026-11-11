@@ -244,7 +244,7 @@ def template_workbook():
         setup.merge_cells(start_row=row, start_column=1, end_row=row, end_column=4)
         _write(setup, row, (note,))
         setup.row_dimensions[row].height = 19
-    _header(setup, 9, ("Input field", "Common value", "Field key", "Applies when"))
+    _header(setup, 9, ("Input field", "Common value", "Field key", "Default"))
     row = 10
     for section, title in SECTIONS.items():
         _header(setup, row, (f"{section}   {title}", None, None, None))
@@ -323,7 +323,7 @@ def _setup_note(key):
     if key in ("growth_basis", "load_basis", "landing_mode"):
         return "Choose the confirmed basis for the repairs in scope."
     if default is None or default == "":
-        return "Blank inherits from the calculator where a preset exists."
+        return ""
     if isinstance(default, bool):
         default = "Yes" if default else "No"
     return f"Calculator default when no value is entered: {default}"
