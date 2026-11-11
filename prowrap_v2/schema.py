@@ -26,7 +26,11 @@ _field('steel_modulus_mpa','Steel modulus [MPa]','number',200000.0,3)
 _field('steel_cte','Steel thermal expansion [1/K]','number',12e-6,3)
 _field('component_qualified','Applicable fitting assessment confirmed','bool',False,3)
 _field('component_ref','Fitting assessment reference','text','',3)
-for key,label in [('pressure_bar','Design pressure [bar]'),('min_pressure_bar','Minimum design pressure [bar]'),('temperature_c','Maximum design temperature [°C]'),('min_temperature_c','Minimum design temperature [°C]'),('install_pressure_bar','Installation pressure [bar]'),('install_temperature_c','Installation temperature [°C]')]:
+_field('pressure_bar','Design pressure [bar]','number',None,4)
+_field('maop_bar','MAOP [bar]','number',None,4)
+_field('pressure_basis','Pressure used for calculations','select','Design pressure',4,['Design pressure','MAOP'])
+_field('min_pressure_bar','Minimum design pressure [bar]','number',0.0,4)
+for key,label in [('temperature_c','Maximum design temperature [°C]'),('min_temperature_c','Minimum design temperature [°C]'),('install_pressure_bar','Installation pressure [bar]'),('install_temperature_c','Installation temperature [°C]')]:
     _field(key,label,'number',None,4)
 _field('mechanism','Defect mechanism','select','Corrosion',5,['Corrosion','Dent no-crack','Leak','Crack','Dent w/crack'])
 _field('defect_location','Defect location','select','External',5,['External','Internal'])

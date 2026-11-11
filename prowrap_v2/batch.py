@@ -55,6 +55,7 @@ CASE_FIELDS = CORE_CASE_FIELDS + tuple(
     key for key in COMMON_FIELDS if key not in CORE_CASE_FIELDS
 )
 ENGINEERING_CASE_FIELDS = (
+    "pressure_basis", "maop_bar",
     "install_pressure_bar", "install_temperature_c", "run_od_mm", "branch_od_mm",
     "component_qualified", "component_ref", "load_basis", "external_pressure",
     "external_assessment_ref", "other_thickness_mm", "substrate_route", "sharing_basis",
@@ -103,6 +104,7 @@ class InputRow:
     values: dict = field(default_factory=dict)
     errors: dict = field(default_factory=dict)
     legacy_schema: bool = False
+    missing_fields: frozenset = field(default_factory=frozenset)
 
     @property
     def location(self):
@@ -210,7 +212,7 @@ def _input_table(workbook, title, instruction, fields, visible):
             dimension.outlineLevel = 1
             dimension.hidden = True
         _add_choice_validation(sheet, key, f"{letter}{FIRST_ROW}:{letter}{4 + LIMITS[title]}")
-        if key in ('b31g_safety_factor', 'original_design_factor', 'ffs_ref', 'grouping_ref', 'qualification_ref', 'qualified_wall_loss_pct', 'axial_mawp_bar', 'assessed_axial_capacity_kn'):
+        if key in ('pressure_basis', 'maop_bar', 'min_pressure_bar', 'b31g_safety_factor', 'original_design_factor', 'ffs_ref', 'grouping_ref', 'qualification_ref', 'qualified_wall_loss_pct', 'axial_mawp_bar', 'assessed_axial_capacity_kn'):
             sheet.cell(4, index).comment = Comment(_setup_note(key), 'PROWRAP')
         for row in range(FIRST_ROW, 15):
             cell = sheet.cell(row, index)
@@ -285,6 +287,12 @@ def template_workbook():
 
 
 def _setup_note(key):
+    if key == 'pressure_basis':
+        return 'Choose Design pressure (default) or MAOP for the base repair calculation. Enter the selected pressure. Named load cases retain their explicit pressure overrides; blank load pressures inherit the selected base pressure.'
+    if key == 'maop_bar':
+        return 'Maximum allowable operating pressure [bar]. Used as the base calculation pressure only when Pressure basis is MAOP. Separate from impaired-pipe MAWP and the axial-capacity MAWP override.'
+    if key == 'min_pressure_bar':
+        return 'Defaults to 0 bar. Enter a manual minimum if required; blank inherits line/batch settings, then 0. Used for pressure bounds and the installation/disbond assessment.'
     if key == 'qualification_ref':
         return 'Optional substrate-credit qualification reference. Blank does not prevent calculation; the confirmed qualified wall-loss limit and all substrate-credit checks still apply.'
     if key == 'qualified_wall_loss_pct':
@@ -398,10 +406,15 @@ def _read_setup(sheet):
         row = _read_row(InputRow(SETUP, number), [(key.value, value)])
         record.values.update(row.values)
         record.errors.update(row.errors)
-    if keys == expected - {'axial_mawp_bar'}:
-        record.legacy_schema = True
-    elif keys != expected:
+    missing = expected - keys
+    allowed_missing = (
+        set(), {'axial_mawp_bar'}, {'pressure_basis', 'maop_bar'},
+        {'pressure_basis', 'maop_bar', 'axial_mawp_bar'},
+    )
+    if missing not in allowed_missing:
         raise WorkbookError("Batch Setup fields are missing. Copy values into a fresh template.")
+    record.missing_fields = frozenset(missing)
+    record.legacy_schema = 'axial_mawp_bar' in missing
     return record
 
 
@@ -541,7 +554,7 @@ def prepare_workbook(content: bytes) -> PreparedBatch:
                 raise WorkbookError("Required input sheets are missing. Download the current CalcBatch Excel template.")
             setup = _read_setup(workbook[SETUP])
             def compatible(fields):
-                return tuple(key for key in fields if not (setup.legacy_schema and key == 'axial_mawp_bar'))
+                return tuple(key for key in fields if key not in setup.missing_fields)
             line_rows = _read_table(workbook[LINES], compatible(LINE_FIELDS))
             sources = _read_table(workbook[CASES], compatible(CASE_FIELDS))
             defect_rows = _read_table(workbook[DEFECTS], tuple(DEFECT_FIELDS) + DEFECT_CASE_FIELDS)
@@ -644,6 +657,9 @@ def _output_table(workbook, title, instruction, headers, rows, widths):
 def _effective_inputs(calculations):
     for repair, case, result in calculations:
         result_id = result["repair_id"]
+        pressure = result.get('details', {}).get('pressure_basis')
+        if pressure:
+            yield result_id, 'Repair', 'Calculation pressure [bar]', pressure['calculation_pressure_bar'], pressure['basis']
         selected = result.get('details', {}).get('b31g')
         if selected:
             yield result_id, 'Repair', 'B31G safety factor used', selected['safety_factor'], selected['source']

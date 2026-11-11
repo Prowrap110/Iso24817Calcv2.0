@@ -7,6 +7,7 @@ from .physics import calculate_structural, bond_stress, component_factor, tee_pr
 from .sealing import solve_seal
 from .assessment import substrate_capacity, b31g_factor_details, axial_capacity_details
 from .procurement import quantities
+from .pressure import pressure_basis_details
 
 class Hold(ValueError):pass
 class InputError(ValueError):pass
@@ -28,7 +29,7 @@ def _validate(c):
     if c['wall_mm']>=c['od_mm']/2:raise InputError('Nominal wall must be below half the outside diameter.')
     if not 0<=c['remaining_wall_mm']<=c['wall_mm']:raise InputError('Remaining wall must be between zero and nominal wall.')
     if c['quantity']!=int(c['quantity']):raise InputError('Quantity must be a whole number.')
-    if c['pressure_bar']<=0 or not 0<=c['min_pressure_bar']<=c['pressure_bar'] or not 0<=c['install_pressure_bar']<=c['pressure_bar']:raise InputError('Pressure bounds and installation pressure must lie between zero and design pressure.')
+    if c['pressure_bar']<=0 or not 0<=c['min_pressure_bar']<=c['pressure_bar'] or not 0<=c['install_pressure_bar']<=c['pressure_bar']:raise InputError('Minimum and installation pressure must lie between zero and the selected calculation pressure.')
     if c['min_temperature_c']>c['temperature_c']:raise InputError('Minimum temperature exceeds maximum temperature.')
     if c.get('zone_length_mm') is not None and c['zone_length_mm']<c['defect_length_mm']:raise InputError('Repair-zone span cannot be smaller than the entered defect length.')
     for k in ('corrosion_rate_mm_year','assessed_mawp_bar','axial_mawp_bar','assessed_axial_capacity_kn','other_thickness_mm','dent_depth_mm','effective_diameter_mm','effective_axial_mm','effective_circ_mm','landing_left_mm','landing_right_mm','thicker_repair_limit_mm'):
@@ -41,9 +42,9 @@ def _validate(c):
     if c['cyclic']:
         _required(c,'cycles','cycle_min_bar','cycle_max_bar')
         if c['cycles']<0 or not c['min_pressure_bar']<=c['cycle_min_bar']<=c['cycle_max_bar']<=c['pressure_bar'] or c['cycle_max_bar']<=0:
-            raise InputError('Cycle count and pressure bounds must fit the design pressure envelope.')
+            raise InputError('Cycle count and pressure bounds must fit the selected calculation pressure envelope.')
     if c['repair_class']<3 and c['service_category'] in ('Hydrocarbon','Produced water','Flammable / toxic / aggressive'):raise Hold('This hazardous-service case requires Class 3 or an explicit service-class assessment.')
-    if c['repair_class']<3 and c['pressure_bar']>20:raise Hold('Classes 1 and 2 are limited to design pressure up to 20 bar.')
+    if c['repair_class']<3 and c['pressure_bar']>20:raise Hold('Classes 1 and 2 are limited to calculation pressure up to 20 bar.')
     if c['repair_class']==1 and (c['temperature_c']>40 or c['service_category']=='Fire water'):raise Hold('Class 1 is limited to 40°C and utility services; fire water requires at least Class 2.')
     if c['repair_class']==2 and c['temperature_c']>100:raise Hold('Class 2 is limited to design temperature up to 100°C.')
     if c['mechanism'] in ('Crack','Dent w/crack'):raise Hold('Crack-associated damage requires a separate referenced crack-growth, fatigue and repair assessment; this evaluator does not establish acceptance.')
@@ -113,7 +114,11 @@ def expand_population(case):
 
 def evaluate_case(case,defects=None,loads=None):
     c=default_case();c.update(deepcopy(case));r=dict(repair_id=c.get('repair_id',''),status='INPUT_ERROR',issues=[],inputs=c,results={},checks=[],details={})
+    entered_design_pressure=c['pressure_bar']
     try:
+        try:r['details']['pressure_basis']=pressure_basis_details(c)
+        except ValueError as ex:raise InputError(str(ex)) from ex
+        c['pressure_bar']=r['details']['pressure_basis']['calculation_pressure_bar']
         _validate(c)
         entered_putty_length=c.get('zone_length_mm') or c['defect_length_mm']
         population_mode=c['purpose']=='Estimate' and c['dent_mode']=='60/40 population' and c['mechanism']=='Dent no-crack'
@@ -129,7 +134,7 @@ def evaluate_case(case,defects=None,loads=None):
             _required(c,'dent_depth_mm')
             if not c.get('population_estimate'):
                 if not c['no_crack_confirmed'] or not c['inspection_ref'] or not c['dent_ffs_ref'] or c['dent_mawp_bar'] is None:raise Hold('Dent assessment requires no-crack inspection and a referenced dent FFS MAWP.')
-                if c['pressure_bar']>c['dent_mawp_bar']:raise Hold('Design pressure exceeds the assessed dent MAWP; no nominal-wall pressure credit is substituted.')
+                if c['pressure_bar']>c['dent_mawp_bar']:raise Hold('Selected calculation pressure exceeds the assessed dent MAWP; no nominal-wall pressure credit is substituted.')
                 if c['dent_complex']:raise Hold('Dent with weld, gouge or restraint requires a dedicated damage assessment.')
                 if c['cyclic']:raise Hold('Cyclic dent life extension requires a dedicated Annex H fatigue assessment outside this evaluator.')
             if c['substrate_route']!='Full laminate':raise Hold('Dent calculations use the full-laminate route; corrosion substrate-credit rules do not establish dent acceptance.')
@@ -180,7 +185,7 @@ def evaluate_case(case,defects=None,loads=None):
                 raise Hold('The additional hotter load case needs a temperature-specific manual axial capacity assessment.')
             effective.append((ident,lc))
         entries=[]
-        for ident,lc in effective:
+        for load_index,(ident,lc) in enumerate(effective):
             try: load_ps,load_fs=substrate_capacity(lc,gs,eol)
             except ValueError as ex:raise Hold(str(ex)) from ex
             st=calculate_structural(lc,material,repair_type,ps_mpa=load_ps,fs_n=load_fs)
@@ -192,6 +197,9 @@ def evaluate_case(case,defects=None,loads=None):
             entry=dict(load_id=ident,structural=st,sealing=seal,overlap_mm=overlap,transfer_mm=transfer,other_thickness_mm=lc.get('other_thickness_mm') or 0)
             entry['substrate_pressure_mpa']=load_ps
             entry['axial_capacity']=axial_capacity_details(lc,load_ps)
+            entry['pressure_basis']=dict(r['details']['pressure_basis'],calculation_pressure_bar=lc['pressure_bar'])
+            if load_index>0 and any(load.get('load_id')==ident and load.get('pressure_bar') not in (None,'') for load in (loads or [])):
+                entry['pressure_basis']['basis']='Load-case pressure override'
             entries.append(entry)
         overlap=max(x['overlap_mm'] for x in entries);extent=1.
         if c['landing_mode']=='Restricted':
@@ -234,5 +242,6 @@ def evaluate_case(case,defects=None,loads=None):
     except InputError as ex:r['status']='INPUT_ERROR';r['issues'].append(str(ex))
     except Hold as ex:r['status']='ENGINEERING_HOLD';r['issues'].append(str(ex))
     except (ValueError,ArithmeticError,TypeError,KeyError) as ex:r['status']='NO_VALID_DESIGN';r['issues'].append(str(ex))
+    finally:c['pressure_bar']=entered_design_pressure
     r['results']={}
     return r

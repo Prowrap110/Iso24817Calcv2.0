@@ -60,6 +60,9 @@ def report_pdf(result):
     para(f"Repair ID: {result.get('repair_id','')}  |  Status: {result.get('status','')}",True)
     para('Generated: '+datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC'),size=8)
     para('Calculated checks and dimensions for engineering review. The project work pack supplies the approved application and inspection procedures.',size=9)
+    if result.get('details',{}).get('pressure_basis'):
+        pressure=result['details']['pressure_basis']
+        para(f"Calculation pressure [bar]: {_value(pressure['calculation_pressure_bar'])} | Basis: {pressure['basis']}",True)
     if result.get('issues'):
         section('Calculation messages')
         for item in result['issues']: para('- '+str(item))
