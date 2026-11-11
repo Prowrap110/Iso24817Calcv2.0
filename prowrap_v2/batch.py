@@ -47,10 +47,10 @@ CORE_CASE_FIELDS = (
     "corrosion_rate_mm_year", "eol_wall_mm", "inspection_ref", "quantity",
 )
 COMMON_FIELDS = tuple(key for key in FIELD_DEFINITIONS if key != "repair_id")
-LINE_FIELDS = ("line_id",) + tuple(
-    key for key in COMMON_FIELDS if FIELD_DEFINITIONS[key]["section"] in (3, 4, 6)
+LINE_FIELDS = ("line_id", "quantity") + tuple(
+    key for key in COMMON_FIELDS if key != "quantity" and FIELD_DEFINITIONS[key]["section"] in (3, 4, 6)
 ) + tuple(
-    key for key in COMMON_FIELDS if FIELD_DEFINITIONS[key]["section"] not in (3, 4, 6)
+    key for key in COMMON_FIELDS if key != "quantity" and FIELD_DEFINITIONS[key]["section"] not in (3, 4, 6)
 )
 CASE_FIELDS = CORE_CASE_FIELDS + tuple(
     key for key in COMMON_FIELDS if key not in CORE_CASE_FIELDS
