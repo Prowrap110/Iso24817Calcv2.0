@@ -35,6 +35,27 @@ def modified_b31g(case,length,remaining):
     flow=min(ys+69,ts);stress=flow*(1-.85*loss)/(1-.85*loss/m)
     return 2*stress*t/(D*sf)
 
+def axial_capacity_details(case, ps_mpa):
+    """ISO 4.1 / Eq. (9): Fs=A*ps, or an explicitly assessed axial capacity."""
+    if case['substrate_route']=='Full laminate':
+        return dict(force_kn=0., pressure_bar=None, source='No substrate credit')
+    pressure=case.get('axial_mawp_bar')
+    force=case.get('assessed_axial_capacity_kn')
+    if pressure is not None and force is not None:
+        raise ValueError('Enter either axial MAWP or the legacy axial force, not both; clear the other override.')
+    if force is not None:
+        if not math.isfinite(force) or force<0:raise ValueError('Assessed axial capacity must be finite and nonnegative.')
+        return dict(force_kn=force, pressure_bar=None, source='Assessed axial force (legacy input)')
+    if pressure is None:
+        pressure=ps_mpa*10
+        source='Automatic from '+case['ffs_method']+' Ps'
+    else:
+        source='Manual axial MAWP'
+    if not math.isfinite(pressure) or pressure<0:raise ValueError('Axial MAWP must be finite and nonnegative.')
+    area=math.pi*case['od_mm']**2/4
+    return dict(force_kn=area*pressure/10000, pressure_bar=pressure, source=source, area_mm2=area)
+
+
 def substrate_capacity(case, groups, eol):
     if case['substrate_route']=='Full laminate':return 0.,None
     if eol<1:raise ValueError('Substrate credit requires end-of-life wall at least 1 mm.')
@@ -60,7 +81,5 @@ def substrate_capacity(case, groups, eol):
     else:
         if case.get('assessed_mawp_bar') is None:raise ValueError('Substrate credit requires assessed impaired-pipe MAWP.')
         ps=case['assessed_mawp_bar']/10
-    fs=case.get('assessed_axial_capacity_kn')
-    if fs is None:raise ValueError('Substrate credit requires an assessed axial capacity; unknown capacity is not zero.')
-    if ps<0 or fs<0:raise ValueError('Assessed capacities cannot be negative.')
-    return ps,fs*1000
+    if ps<0:raise ValueError('Assessed capacities cannot be negative.')
+    return ps,axial_capacity_details(case,ps)['force_kn']*1000

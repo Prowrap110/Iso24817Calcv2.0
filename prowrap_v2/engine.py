@@ -5,7 +5,7 @@ from .schema import default_case, FIELD_DEFINITIONS, LOAD_FIELDS
 from .materials import get_material
 from .physics import calculate_structural, bond_stress, component_factor, tee_pressure_limit
 from .sealing import solve_seal
-from .assessment import substrate_capacity, b31g_factor_details
+from .assessment import substrate_capacity, b31g_factor_details, axial_capacity_details
 from .procurement import quantities
 
 class Hold(ValueError):pass
@@ -31,7 +31,7 @@ def _validate(c):
     if c['pressure_bar']<=0 or not 0<=c['min_pressure_bar']<=c['pressure_bar'] or not 0<=c['install_pressure_bar']<=c['pressure_bar']:raise InputError('Pressure bounds and installation pressure must lie between zero and design pressure.')
     if c['min_temperature_c']>c['temperature_c']:raise InputError('Minimum temperature exceeds maximum temperature.')
     if c.get('zone_length_mm') is not None and c['zone_length_mm']<c['defect_length_mm']:raise InputError('Repair-zone span cannot be smaller than the entered defect length.')
-    for k in ('corrosion_rate_mm_year','assessed_mawp_bar','assessed_axial_capacity_kn','other_thickness_mm','dent_depth_mm','effective_diameter_mm','effective_axial_mm','effective_circ_mm','landing_left_mm','landing_right_mm','thicker_repair_limit_mm'):
+    for k in ('corrosion_rate_mm_year','assessed_mawp_bar','axial_mawp_bar','assessed_axial_capacity_kn','other_thickness_mm','dent_depth_mm','effective_diameter_mm','effective_axial_mm','effective_circ_mm','landing_left_mm','landing_right_mm','thicker_repair_limit_mm'):
         if c.get(k) is not None and c[k]<0:raise InputError(f'{k} cannot be negative.')
     if c['load_basis']=='Pressure-only confirmed':
         if any(c.get(k) not in (None,0) for k in ('axial_kn','shear_kn','bending_knm','torsion_knm')):raise InputError('Pressure-only confirmation conflicts with entered additional loads.')
@@ -159,6 +159,7 @@ def evaluate_case(case,defects=None,loads=None):
         if c['substrate_route']!='Full laminate' and c['ffs_method']=='Modified B31G':
             r['details']['b31g']=b31g_factor_details(c)
         material=get_material(c['product']);r['details']['substrate_pressure_mpa']=ps
+        r['details']['axial_capacity']=axial_capacity_details(c,ps)
         effective=[('Base',deepcopy(c))];ids=set()
         for i,load in enumerate(loads or []):
             unsupported=set(load).difference(set(LOAD_FIELDS)|{'other_thickness_mm'})
@@ -175,6 +176,8 @@ def evaluate_case(case,defects=None,loads=None):
                 if lc['cyclic']:raise Hold('A cyclic dent load case requires a dedicated Annex H fatigue assessment.')
             if c['substrate_route']!='Full laminate' and c['ffs_method']=='External assessment' and lc['temperature_c']>c['temperature_c']:
                 raise Hold('The additional hotter load case needs a temperature-specific substrate capacity assessment.')
+            if c['substrate_route']!='Full laminate' and lc['temperature_c']>c['temperature_c'] and any((c.get(k) or 0)>0 for k in ('axial_mawp_bar','assessed_axial_capacity_kn')):
+                raise Hold('The additional hotter load case needs a temperature-specific manual axial capacity assessment.')
             effective.append((ident,lc))
         entries=[]
         for ident,lc in effective:
@@ -187,6 +190,8 @@ def evaluate_case(case,defects=None,loads=None):
             transfer=3*material['ea_mpa']*st['epsilon_a']*st['axial_mm']/material['lap_shear_mpa']
             overlap=max(overlap,transfer*(1+1e-9))
             entry=dict(load_id=ident,structural=st,sealing=seal,overlap_mm=overlap,transfer_mm=transfer,other_thickness_mm=lc.get('other_thickness_mm') or 0)
+            entry['substrate_pressure_mpa']=load_ps
+            entry['axial_capacity']=axial_capacity_details(lc,load_ps)
             entries.append(entry)
         overlap=max(x['overlap_mm'] for x in entries);extent=1.
         if c['landing_mode']=='Restricted':

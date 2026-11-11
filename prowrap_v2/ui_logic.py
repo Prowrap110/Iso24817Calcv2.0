@@ -80,7 +80,7 @@ def active_fields(case, defects=()):
 
     if case.get("substrate_route") == "Full laminate":
         hide(
-            "sharing_basis", "ffs_method", "ffs_ref", "assessed_mawp_bar", "assessed_axial_capacity_kn",
+            "sharing_basis", "ffs_method", "ffs_ref", "assessed_mawp_bar", "axial_mawp_bar", "assessed_axial_capacity_kn",
             "qualified_wall_loss_pct", "qualification_ref", "b31g_safety_factor", "original_design_factor",
             "smts_mpa", "allowable_stress_mpa",
         )

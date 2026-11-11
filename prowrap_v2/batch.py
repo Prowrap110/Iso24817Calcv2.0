@@ -58,7 +58,7 @@ ENGINEERING_CASE_FIELDS = (
     "install_pressure_bar", "install_temperature_c", "run_od_mm", "branch_od_mm",
     "component_qualified", "component_ref", "load_basis", "external_pressure",
     "external_assessment_ref", "other_thickness_mm", "substrate_route", "sharing_basis",
-    "ffs_method", "ffs_ref", "assessed_mawp_bar", "assessed_axial_capacity_kn",
+    "ffs_method", "ffs_ref", "assessed_mawp_bar", "axial_mawp_bar", "assessed_axial_capacity_kn",
     "qualified_wall_loss_pct", "qualification_ref", "b31g_safety_factor",
     "original_design_factor", "landing_mode", "landing_left_mm", "landing_right_mm",
     "procedure_ref", "cure_basis", "cure_ref", "cure_temperature_c", "cure_hours",
@@ -102,6 +102,7 @@ class InputRow:
     number: int
     values: dict = field(default_factory=dict)
     errors: dict = field(default_factory=dict)
+    legacy_schema: bool = False
 
     @property
     def location(self):
@@ -209,7 +210,7 @@ def _input_table(workbook, title, instruction, fields, visible):
             dimension.outlineLevel = 1
             dimension.hidden = True
         _add_choice_validation(sheet, key, f"{letter}{FIRST_ROW}:{letter}{4 + LIMITS[title]}")
-        if key in ('b31g_safety_factor', 'original_design_factor', 'ffs_ref'):
+        if key in ('b31g_safety_factor', 'original_design_factor', 'ffs_ref', 'axial_mawp_bar', 'assessed_axial_capacity_kn'):
             sheet.cell(4, index).comment = Comment(_setup_note(key), 'PROWRAP')
         for row in range(FIRST_ROW, 15):
             cell = sheet.cell(row, index)
@@ -284,6 +285,10 @@ def template_workbook():
 
 
 def _setup_note(key):
+    if key == 'axial_mawp_bar':
+        return 'Optional axial-only MAWP override in bar. Blank inherits; with no pressure or legacy force override, Fs = A × assessed Ps. Zero means no axial credit. Does not replace hoop Ps.'
+    if key == 'assessed_axial_capacity_kn':
+        return 'Legacy force override, including zero, is retained. Leave blank for automatic Fs from Ps or the axial MAWP option. Do not populate both force and pressure overrides.'
     if key == 'ffs_ref':
         return 'Optional assessment reference. Blank does not prevent calculation; applicability and capacity checks still apply.'
     if key == 'b31g_safety_factor':
@@ -387,7 +392,9 @@ def _read_setup(sheet):
         row = _read_row(InputRow(SETUP, number), [(key.value, value)])
         record.values.update(row.values)
         record.errors.update(row.errors)
-    if keys != expected:
+    if keys == expected - {'axial_mawp_bar'}:
+        record.legacy_schema = True
+    elif keys != expected:
         raise WorkbookError("Batch Setup fields are missing. Copy values into a fresh template.")
     return record
 
@@ -457,6 +464,9 @@ def _resolve(source, setup, lines, defects, loads, duplicate):
     line_id = source.values.get("line_id", "")
     case = default_case()
     origins = {key: "Calculator default" for key, value in case.items() if not _is_blank(value)}
+    if setup.legacy_schema:
+        case['ffs_method'] = 'External assessment'
+        origins['ffs_method'] = 'Legacy v2.0 default'
     prepared = PreparedRepair(source, case, origins, issues=list(source.errors.values()))
     if not repair_id:
         prepared.issues.append("Repair ID is required.")
@@ -524,10 +534,12 @@ def prepare_workbook(content: bytes) -> PreparedBatch:
             if not {SETUP, LINES, CASES, DEFECTS, ENGINEERING} <= set(workbook.sheetnames):
                 raise WorkbookError("Required input sheets are missing. Download the current CalcBatch Excel template.")
             setup = _read_setup(workbook[SETUP])
-            line_rows = _read_table(workbook[LINES], LINE_FIELDS)
-            sources = _read_table(workbook[CASES], CASE_FIELDS)
+            def compatible(fields):
+                return tuple(key for key in fields if not (setup.legacy_schema and key == 'axial_mawp_bar'))
+            line_rows = _read_table(workbook[LINES], compatible(LINE_FIELDS))
+            sources = _read_table(workbook[CASES], compatible(CASE_FIELDS))
             defect_rows = _read_table(workbook[DEFECTS], tuple(DEFECT_FIELDS) + DEFECT_CASE_FIELDS)
-            load_rows = _read_table(workbook[ENGINEERING], tuple(LOAD_FIELDS) + ENGINEERING_CASE_FIELDS)
+            load_rows = _read_table(workbook[ENGINEERING], compatible(tuple(LOAD_FIELDS) + ENGINEERING_CASE_FIELDS))
         finally:
             workbook.close()
     except (BadZipFile, InvalidFileException, KeyError, OSError, ParseError, TypeError, ValueError) as error:
@@ -629,6 +641,12 @@ def _effective_inputs(calculations):
         selected = result.get('details', {}).get('b31g')
         if selected:
             yield result_id, 'Repair', 'B31G safety factor used', selected['safety_factor'], selected['source']
+        axial = result.get('details', {}).get('axial_capacity')
+        if axial and case['substrate_route'] != 'Full laminate':
+            yield result_id, 'Repair', 'Axial capacity used [kN]', axial['force_kn'], axial['source']
+            if axial['pressure_bar'] is not None:
+                yield result_id, 'Repair', 'Axial pressure basis [bar]', axial['pressure_bar'], axial['source']
+            yield result_id, 'Repair', 'Remaining-pipe Ps [bar]', result['details']['substrate_pressure_mpa']*10, case['ffs_method']
         for key, value in case.items():
             if key not in FIELD_DEFINITIONS or _is_blank(value):
                 continue
