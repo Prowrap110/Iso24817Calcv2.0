@@ -35,3 +35,7 @@ Both application entry points use `prowrap_v2.engine.evaluate_case`. Dependency 
 ## Optional-reference revision — 11 November 2026
 
 `python3 -m pytest -q`: **128 passed**. Verified blank/null references preserve B31G capacity and repair results; material, design-code, straight-pipe corrosion, strength, temperature, wall-loss and safety-factor checks still reject out-of-scope inputs. External assessed MAWP remains required. Single and batch app submissions with blank references produce matching results, and the invalid-factor batch row remains isolated without installation quantities. Version remains 2.0.0.
+
+## Axial-capacity revision — 11 November 2026
+
+`python3 -m pytest -q`: **151 passed**. Added numerical witnesses for automatic Fs from capped Ps and manual MAWP in bar; unchanged hoop Ps; explicit zero; legacy force preservation and clearing; invalid/conflicting overrides; hotter-case manual-capacity restrictions; inheritance and older workbook compatibility; matching single/batch calculations; and PDF/Excel capacity records. The original pre-revision workbook was also reimported successfully. An independent engineering/code review confirmed the ISO A × Ps basis, units, coupling, compatibility and validation scope. Version remains 2.0.0.

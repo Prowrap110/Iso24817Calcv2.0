@@ -61,3 +61,13 @@ Both apps show the selected factor and its automatic/manual basis. PDF/JSON calc
 The `ffs_ref` field is optional for Modified B31G and external assessed-capacity routes. It is retained for traceability when provided, but a blank reference is not an engineering hold. The Modified B31G material specification, original design code, straight-pipe corrosion restriction, strength/temperature limits, metal-loss limit and safety-factor validation remain unchanged. The external route still requires assessed MAWP; both substrate-credit routes retain their end-of-life wall, qualification-envelope and axial-capacity checks. Dent-assessment and substrate-credit qualification references are separate inputs and remain unchanged.
 
 The single form labels the reference optional. Batch Setup notes and table-header comments explain its optional status while preserving the v2.0 workbook column contract.
+
+## Pressure-based axial capacity — v2.0 revision, 11 November 2026
+
+ISO 24817:2026 §4.1 defines impaired-component axial capacity Fs as A × ps, or from a relevant defect assessment. Equation (9) uses A = πD²/4. New calculations default to Modified B31G; automatic axial credit uses the final assessed Ps after the existing original-code pressure cap, not the raw failure pressure. Conversion is `Fs [kN] = πD² [mm²] × pressure [bar] / 40000`.
+
+The owner selected a separate manual MAWP in bar for axial capacity only. `axial_mawp_bar` replaces the pressure used to calculate Fs but never replaces hoop Ps. Fs also enters the combined-stress hoop equation through Poisson coupling, so hoop thickness need not stay unchanged. When the remaining-capacity assessment is explicitly External assessment, blank axial overrides use that external Ps.
+
+Existing `assessed_axial_capacity_kn` inputs are retained, including zero. Both override fields populated is an engineering hold. Blank fields mean automatic pressure-based axial capacity; an explicit zero pressure or force means zero axial credit. Manual positive axial credit cannot be reused in an additional hotter load case without a temperature-specific assessment. Full-laminate and Type B routes retain zero substrate credit.
+
+The new template adds `axial_mawp_bar` to shared defaults and repair-level engineering inputs. A complete old v2.0 template without this field is accepted with its former External assessment default preserved before explicit overrides are resolved; mixed or otherwise changed column contracts remain rejected. The calculation record exports axial force, pressure basis and source for the base and every load case. Version remains 2.0.0.
