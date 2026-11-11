@@ -47,3 +47,7 @@ Both application entry points use `prowrap_v2.engine.evaluate_case`. Dependency 
 ## Optional substrate-credit qualification reference — 11 November 2026
 
 `python3 -m pytest -q`: **185 passed**. The 18 new regression cases cover blank/null qualification references for both substrate-credit routes and both capacity methods, identical results/checks/capacity details with a supplied reference, reference retention in batch records, and missing/nonfinite/out-of-range/reached/exceeded qualification limits. Single-app submission and batch upload accept valid blank-reference cases while missing or reached limits retain holds without installation quantities. Independent code review found no blocking issues; numerical checks, workbook contracts and version 2.0.0 remain unchanged.
+
+## Default qualified wall-loss limit — 11 November 2026
+
+`python3 -m pytest -q`: **192 passed**. Seven additional regression cases verify the 81% default for both products, matching omitted/explicit limit results, manual overrides preserved across product changes, New calculation restoring 81%, batch default/line/repair/engineering precedence, zero/equality holds and recorded effective limits. Existing reference tests now use an explicit invalid batch limit because a blank workbook limit intentionally inherits 81%. Independent code review found no blocking issues. The optional reference, numerical engineering gates, workbook headers and version 2.0.0 remain unchanged.
