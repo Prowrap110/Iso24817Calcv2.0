@@ -139,3 +139,81 @@ def test_batch_inherited_override_precedes_automatic_and_row_override_wins():
     _, results = calculate_batch(prepare_workbook(data.getvalue()))
     assert [r['details']['b31g']['safety_factor'] for r in results[:3]] == [1.5,1.75,2.]
     assert all(r['details']['b31g']['source']=='Manual override' for r in results[:3])
+
+
+@pytest.mark.parametrize('reference', ['', None])
+def test_b31g_reference_is_optional_without_changing_capacity(reference):
+    baseline = evaluate_case(b31g_case())
+    result = evaluate_case(b31g_case(ffs_ref=reference))
+    assert result['status'] == 'CALCULATED', result['issues']
+    assert result['results'] == baseline['results']
+    assert result['details'] == baseline['details']
+
+
+@pytest.mark.parametrize('changes,reason', [
+    (dict(mechanism='Dent no-crack'), 'straight-pipe'),
+    (dict(component='Elbow'), 'straight-pipe'),
+    (dict(material_grade=''), 'material'),
+    (dict(design_code=''), 'design'),
+    (dict(smys_mpa=484), 'scope'),
+    (dict(smts_mpa=300), 'scope'),
+    (dict(temperature_c=120), 'scope'),
+    (dict(b31g_safety_factor=1.24), 'safety factor'),
+])
+def test_optional_reference_keeps_b31g_applicability_gates(changes, reason):
+    with pytest.raises(ValueError, match=reason):
+        modified_b31g(b31g_case(ffs_ref='', **changes),100,4.5)
+
+
+def test_optional_reference_keeps_b31g_depth_limit():
+    with pytest.raises(ValueError,match='metal-loss ratio'):
+        modified_b31g(b31g_case(ffs_ref=''),100,1.)
+
+
+def test_external_assessment_reference_optional_but_capacity_required():
+    case = b31g_case(ffs_method='External assessment',assessed_mawp_bar=20,ffs_ref='')
+    result = evaluate_case(case)
+    assert result['status'] == 'CALCULATED', result['issues']
+    assert result['details']['substrate_pressure_mpa'] == 2.
+    case['assessed_mawp_bar'] = None
+    result = evaluate_case(case)
+    assert result['status'] == 'ENGINEERING_HOLD'
+    assert not result['results']
+
+
+def workbook_without_ffs_reference():
+    book = load_workbook(BytesIO(factor_workbook()))
+    setup = book['Batch Setup']
+    row = next(r for r in range(10,setup.max_row+1) if setup.cell(r,3).value=='ffs_ref')
+    setup.cell(row,2).value = None
+    content = BytesIO(); book.save(content)
+    return content.getvalue()
+
+
+def test_batch_blank_reference_matches_single_and_invalid_factor_still_holds():
+    prepared = prepare_workbook(workbook_without_ffs_reference())
+    _, results = calculate_batch(prepared)
+    assert [result['status'] for result in results] == ['CALCULATED']*3+['ENGINEERING_HOLD']
+    for repair, result in zip(prepared.repairs, results):
+        assert not repair.case['ffs_ref']
+        assert result == evaluate_case(repair.case)
+    assert not results[-1]['results']
+
+
+def test_single_app_calculates_without_ffs_reference():
+    app = AppTest.from_file(str(Path(__file__).parents[1]/'app.py'), default_timeout=20)
+    for key, value in b31g_case(ffs_ref='').items():
+        app.session_state['case_'+key] = value
+    app.run()
+    app.button(key='calculate').click().run()
+    assert not app.exception
+    assert app.session_state['calculation_results'][0]['status'] == 'CALCULATED'
+
+
+def test_batch_app_calculates_without_ffs_reference():
+    app = AppTest.from_file(str(Path(__file__).parents[1]/'batch_app.py'), default_timeout=20).run()
+    app.get('file_uploader')[0].upload('no-reference.xlsx',workbook_without_ffs_reference()).run()
+    app.button[0].click().run()
+    assert not app.exception
+    assert next(m.value for m in app.metric if m.label=='Calculated') == '3'
+    assert next(m.value for m in app.metric if m.label=='Require review') == '1'
