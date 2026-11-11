@@ -101,6 +101,7 @@ def main():
             file_name="PROWRAP_CalcBatch_v2_Template.xlsx", on_click="ignore",
         )
         st.caption("Enter shared values on Batch Setup or Line Defaults. Add one row per repair zone.")
+        st.caption("Enter Number of identical repairs in Line Defaults column B. A linked repair with a blank quantity inherits it; Results shows the applied count under Identical repairs.")
         st.caption("The results workbook includes blank pricing cells for fabric per m², epoxy per litre and a sales multiplier, with automatic sale totals.")
         st.caption('Choose Design pressure (default) or MAOP for calculations. Minimum design pressure defaults to 0 bar and can be overridden. Blank cells inherit line/batch settings; explicitly entered load-case pressures still apply.')
         st.caption('Fitness-for-service reference is optional. Include an available reference for the calculation record.')

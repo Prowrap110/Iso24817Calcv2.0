@@ -11,6 +11,8 @@ Single-repair and batch composite-repair calculators for ISO 24817:2026. Both ap
 
 The batch template contains Batch Setup, Line Defaults, Repair Cases, Defect Details, and Load and Engineering Details. Use the template from v2.0; older workbooks have a different input contract. Blank repair cells inherit line or batch values. Explicit zero and False remain valid overrides.
 
+**Number of identical repairs** is visible in **Line Defaults column B**, next to Line ID. A linked repair with a blank quantity inherits that line's count; an entered repair quantity takes precedence. The exported **Identical repairs** column shows the applied count, and material totals include it exactly once. Existing v2.0 files with the quantity column in its previous position remain accepted.
+
 ## Calculation pressure
 
 **Minimum design pressure defaults to 0 bar** in both calculators and remains editable. In the single form, **Design pressure [bar]** and **MAOP [bar]** appear side by side; select **Pressure used for calculations** to use either Design pressure (default) or MAOP. The selected positive pressure drives the base repair calculation and applicable pressure bounds. The unselected pressure may be blank; if entered, it must still be a valid positive number. The input record preserves both entered values, and the form, results and PDF/JSON/Excel records identify the pressure actually used.
