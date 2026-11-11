@@ -59,7 +59,7 @@ def axial_capacity_details(case, ps_mpa):
 def substrate_capacity(case, groups, eol):
     if case['substrate_route']=='Full laminate':return 0.,None
     if eol<1:raise ValueError('Substrate credit requires end-of-life wall at least 1 mm.')
-    if not case.get('qualification_ref') or case.get('qualified_wall_loss_pct') is None:raise ValueError('Substrate credit requires the Annex C qualified wall-loss envelope and reference.')
+    if case.get('qualified_wall_loss_pct') is None:raise ValueError('Substrate credit requires Confirmed qualified wall-loss limit [%]. Enter the Annex C qualified limit in Existing pipe capacity.')
     if not 0<=case['qualified_wall_loss_pct']<=100 or 100*(case['wall_mm']-eol)/case['wall_mm']>=case['qualified_wall_loss_pct']:raise ValueError('End-of-life loss exceeds the Annex C qualified wall-loss envelope.')
     if case['substrate_route']=='Substrate stress limit' and not case.get('allowable_stress_mpa'):
         raise ValueError('Substrate stress-limit sizing requires the allowable substrate stress.')
