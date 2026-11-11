@@ -70,7 +70,7 @@ def _future(c,remaining):
 def _groups(c,defects):
     if c['defect_mode']=='Actual / combined':return [dict(length_mm=c['defect_length_mm'],width_mm=c['defect_width_mm'],remaining_wall_mm=c['remaining_wall_mm'])]
     if c['mechanism']!='Corrosion' or c['defect_location']!='External':raise Hold('Independent-defect treatment is limited to external corrosion.')
-    if not c['independence_confirmed'] or not c['grouping_ref']:raise Hold('Independent defects require confirmed dimensions, noninteraction and an inspection/grouping reference.')
+    if not c['independence_confirmed']:raise Hold('Independent defects require confirmed dimensions and noninteraction. Confirm these in Defect information.')
     if c.get('zone_length_mm') is None:raise InputError('Independent defects require the overall repair-zone span.')
     if c['defect_mode']=='Independent 10x10':
         return [dict(length_mm=10.,width_mm=10.,remaining_wall_mm=c['remaining_wall_mm'])]

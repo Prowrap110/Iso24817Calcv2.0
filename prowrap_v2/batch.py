@@ -210,7 +210,7 @@ def _input_table(workbook, title, instruction, fields, visible):
             dimension.outlineLevel = 1
             dimension.hidden = True
         _add_choice_validation(sheet, key, f"{letter}{FIRST_ROW}:{letter}{4 + LIMITS[title]}")
-        if key in ('b31g_safety_factor', 'original_design_factor', 'ffs_ref', 'axial_mawp_bar', 'assessed_axial_capacity_kn'):
+        if key in ('b31g_safety_factor', 'original_design_factor', 'ffs_ref', 'grouping_ref', 'axial_mawp_bar', 'assessed_axial_capacity_kn'):
             sheet.cell(4, index).comment = Comment(_setup_note(key), 'PROWRAP')
         for row in range(FIRST_ROW, 15):
             cell = sheet.cell(row, index)
@@ -285,6 +285,8 @@ def template_workbook():
 
 
 def _setup_note(key):
+    if key == 'grouping_ref':
+        return 'Optional inspection/grouping reference. Blank does not prevent calculation. Confirm dimensions and noninteraction and enter the overall zone span; independent-defect applicability checks still apply.'
     if key == 'axial_mawp_bar':
         return 'Optional axial-only MAWP override in bar. Blank inherits; with no pressure or legacy force override, Fs = A × assessed Ps. Zero means no axial credit. Does not replace hoop Ps.'
     if key == 'assessed_axial_capacity_kn':
