@@ -16,6 +16,7 @@ from openpyxl.utils.exceptions import InvalidFileException
 from openpyxl.worksheet.datavalidation import DataValidation
 
 from .schema import DEFECT_FIELDS, FIELD_DEFINITIONS, LOAD_FIELDS, SECTIONS, default_case
+from .commercial import add_commercial_summary
 
 SETUP = "Batch Setup"
 LINES = "Line Defaults"
@@ -774,12 +775,7 @@ def calculate_batch(batch: PreparedBatch) -> tuple[bytes, list[dict]]:
          "Putty [kg]", "Epoxy including putty [kg]", "Material cost", "Currency"),
         _summary(results, batch.rates, warnings), (26, 14, 17, 17, 19, 15, 23, 18, 14),
     )
-    if batch.rates:
-        _write(summary, 12, ("Commercial input", "Rate", "Currency"))
-        _write(summary, 13, ("Fabric / m²", batch.rates["fabric_rate"], batch.rates["currency"]))
-        _write(summary, 14, ("Epoxy and putty / kg", batch.rates["epoxy_rate"], batch.rates["currency"]))
-    else:
-        _write(summary, 12, ("Enter currency and both rates on Batch Setup to calculate cost.",))
+    add_commercial_summary(summary, results, batch.rates)
     headers = ("Repair ID", "Source Repair ID", "Source row", "Status", "Asset / line", "Type", "Governing load") + tuple(RESULT_FIELDS.values())
     _output_table(
         workbook, "Results",
