@@ -51,3 +51,7 @@ Both application entry points use `prowrap_v2.engine.evaluate_case`. Dependency 
 ## Default qualified wall-loss limit — 11 November 2026
 
 `python3 -m pytest -q`: **192 passed**. Seven additional regression cases verify the 81% default for both products, matching omitted/explicit limit results, manual overrides preserved across product changes, New calculation restoring 81%, batch default/line/repair/engineering precedence, zero/equality holds and recorded effective limits. Existing reference tests now use an explicit invalid batch limit because a blank workbook limit intentionally inherits 81%. Independent code review found no blocking issues. The optional reference, numerical engineering gates, workbook headers and version 2.0.0 remain unchanged.
+
+## Design pressure / MAOP selection — 11 November 2026
+
+`python3 -m pytest -q`: **228 passed**. The 36 new tests cover zero minimum-pressure defaults and manual bond-check effects; selected-MAOP equivalence for full laminate, both substrate-credit routes and Type B; raw-pressure preservation; required/invalid selected inputs; installation/minimum/class/dent/cycle checks; explicit and inherited load pressures, including a load named Base; PDF/JSON pressure records; single-app selection and cleared-input rejection; batch inheritance/export/preview/calculation and prior workbook contracts. Invalid cases continue to issue no installation quantities. Version remains 2.0.0.

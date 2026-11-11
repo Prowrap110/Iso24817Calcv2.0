@@ -39,6 +39,7 @@ Default-strain and performance-strain routes retain the applicable temperature, 
 | Calculation | Implementation |
 | --- | --- |
 | Classes, service, defect grouping, end-of-life condition and route gates | `engine.py` |
+| Selected Design pressure / MAOP demand and pressure input validation | `pressure.py` |
 | Load equivalents, strain, temperature and cyclic factors; structural equations | `physics.py` |
 | Type B circular and slot sealing, finite-solution checks and governing capacities | `sealing.py` |
 | Assessed substrate capacity and Modified B31G | `assessment.py` |
@@ -87,3 +88,13 @@ At the owner's request, `qualification_ref` is optional in both substrate-credit
 The owner selected 81% as the default `qualified_wall_loss_pct` for PRW110+ and PRW110, using the PRW110+ report's stated limit and the instruction to share this limit between the products. This is an editable design input, not a new qualification test result. New/reset/example single cases and omitted engine fields use 81%; an explicit single-form value overrides it, including invalid values which still fail validation. Clearing that field does not silently substitute a different value.
 
 Blank workbook cells inherit through repair/engineering inputs, line defaults and Batch Setup, finally falling back to the calculator's 81%. Explicit existing values are never replaced by the default; zero remains zero and fails the strict loss check. The applied value and its origin remain in batch Effective Inputs. The strict end-of-life loss check, range validation, minimum remaining wall and Modified B31G's separate 80% metal-loss limit are unchanged. No fields, workbook headers or version numbers changed.
+
+## Selected pressure demand and minimum-pressure default — 11 November 2026
+
+The owner requested a minimum-design-pressure default of 0 bar, with manual entry, plus separate Design pressure and MAOP inputs and an explicit choice of which pressure to use. `pressure_basis` defaults to Design pressure; `maop_bar` is initially blank. `pressure_basis_details` resolves the positive finite selected value before class, pressure-bound, cycle, dent and other assessment checks. Base structural sizing, Type B sealing, pipe end loads, fitting limits and installed-condition checks therefore use the selected pressure. No new equation or qualification is introduced.
+
+The evaluator retains the entered Design pressure and MAOP separately in the input record. The selected pressure and its source are stored in calculation details and displayed/exported. MAOP is a repair pressure-demand input; it does not replace `assessed_mawp_bar`, `axial_mawp_bar`, Modified B31G Ps or any existing capacity input. Minimum and installation pressure cannot exceed the selected calculation pressure.
+
+Named additional load cases retain their existing explicit `pressure_bar` overrides. An omitted/blank pressure inherits the selected base pressure, while an entered pressure is assessed at its own value and identified as a load-case pressure override. This prevents selection of a lower base MAOP from discarding separately entered higher-pressure load cases. All cases remain part of the governing-thickness and final checks.
+
+The new fields may be inherited or overridden at batch, line and repair/repair-level-engineering scope. They are not named-load fields. Prior complete workbook contracts without the pressure-field pair remain supported, including the older contract without axial MAWP; partial field pairs or mixed table contracts are rejected. Prior explicit minimum pressures remain intact, while blank minimum pressures fall back to 0. Version remains 2.0.0.
