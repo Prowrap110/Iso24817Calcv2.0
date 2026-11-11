@@ -51,7 +51,8 @@ HELP={
  'load_basis':'Pressure-only includes the pressure end load. Select additional loads for axial force, shear, bending or torsion.',
  'cycles':'Total expected cycles over the design life, not cycles per year.',
  'effective_diameter_mm':'Assessor-defined effective opening, covering current and future pressurized/unbonded footprint, filler and stopgap.',
- 'qualified_wall_loss_pct':'Maximum wall-loss envelope from the referenced system qualification used for substrate credit.',
+ 'qualified_wall_loss_pct':'Required for substrate credit. Maximum wall-loss percentage from the system qualification. Assessed end-of-life wall loss must be strictly below this limit.',
+ 'qualification_ref':'Optional qualification reference for the calculation record. The confirmed qualified wall-loss limit and all substrate-credit checks remain required.',
  'ffs_ref':'Optional reference for the assessment record. Leaving this blank does not bypass applicability or capacity checks.',
  'grouping_ref':'Optional inspection or grouping reference for the calculation record. Dimensions and noninteraction confirmation, overall zone span and applicable measured-defect checks remain required.',
  'axial_mawp_bar':'Optional. Blank calculates axial capacity from the assessed remaining-pipe Ps (Modified B31G by default). Enter the damaged pipe MAWP in bar to override only the pressure used for axial force Fs = π × OD² × MAWP / 40000 [kN]. Hoop Ps remains unchanged; combined-stress thickness can change.',
@@ -64,7 +65,7 @@ HELP={
 
 def widget(key):
     f=FIELD_DEFINITIONS[key];kw=dict(key='case_'+key,on_change=clear_result,help=HELP.get(key))
-    if f['kind']=='text': st.text_input({'ffs_ref':'Fitness-for-service reference (optional)','grouping_ref':'Inspection / grouping assessment reference (optional)'}.get(key,f['label']),**kw)
+    if f['kind']=='text': st.text_input({'ffs_ref':'Fitness-for-service reference (optional)','grouping_ref':'Inspection / grouping assessment reference (optional)','qualification_ref':'Substrate-credit qualification reference (optional)'}.get(key,f['label']),**kw)
     elif f['kind']=='select': st.selectbox(f['label'],f['choices'],**kw)
     elif f['kind']=='bool': st.checkbox(f['label'],**kw)
     else:

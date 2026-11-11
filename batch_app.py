@@ -93,6 +93,7 @@ def main():
         )
         st.caption("Enter shared values on Batch Setup or Line Defaults. Add one row per repair zone.")
         st.caption('Fitness-for-service reference is optional. Include an available reference for the calculation record.')
+        st.caption('Substrate-credit qualification reference is optional. Confirmed qualified wall-loss limit [%] remains required for substrate credit; assessed end-of-life wall loss must be strictly below it.')
         st.caption('Inspection / grouping assessment reference is optional. Independent defects still require confirmed dimensions/noninteraction, the overall zone span and applicable spacing checks.')
         st.caption('B31G: automatic safety factor = max(1 ÷ original pipeline design factor, 1.25). Enter a B31G assessment safety factor only for a manual override. Blank repair cells inherit any line or batch override; clear those too to use automatic calculation.')
         st.caption('Axial capacity defaults to A × assessed Ps (Modified B31G by default). Enter Axial-capacity MAWP override [bar] for the axial basis only. Clear any legacy kN override before using it; explicit zero means no axial credit.')

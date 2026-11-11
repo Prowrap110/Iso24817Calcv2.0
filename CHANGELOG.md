@@ -1,5 +1,11 @@
 # Changelog
 
+## Optional substrate-credit qualification reference — 2026-11-11 (version remains 2.0.0)
+
+- Make the substrate-credit qualification reference optional in both calculators and retain any entered reference in the calculation record.
+- Keep the confirmed qualified wall-loss limit mandatory for substrate credit, including range validation and strict end-of-life loss below the limit.
+- Identify the missing numerical input clearly, mark the reference optional in the single form and batch guidance, and preserve workbook compatibility.
+
 ## Optional grouping reference — 2026-11-11 (version remains 2.0.0)
 
 - Make the inspection/grouping assessment reference optional in both independent-defect modes and both calculators.

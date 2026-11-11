@@ -17,6 +17,10 @@ Automatic selection uses **max(1 ÷ original pipeline design factor, 1.25)**. En
 
 The **fitness-for-service reference is optional** in both apps. An entered reference remains in the calculation record. Modified B31G still requires pipe material and original design code, and retains its geometry, material-strength, temperature, wall-loss and safety-factor checks. External assessments still require the assessed impaired-pipe MAWP and applicable axial capacity.
 
+## Substrate-credit qualification
+
+The **substrate-credit qualification reference is optional** in both apps. An entered reference remains in the calculation record. **Confirmed qualified wall-loss limit [%] remains required** whenever remaining-steel capacity is credited. The assessed end-of-life wall loss must be strictly below that limit; equality still fails. The end-of-life minimum wall, Modified B31G applicability and other capacity checks remain unchanged. Template notes identify the optional reference without changing existing workbook headers.
+
 ## Independent defects
 
 The **inspection/grouping assessment reference is optional** for Independent 10x10 and Measured individual defects. The dimensions/noninteraction confirmation and overall repair-zone span remain required. Independent treatment remains limited to external corrosion, and measured-defect dimensions, remaining wall and spacing/noninteraction checks remain active. The single form identifies the reference as optional; batch notes and header comments do the same without changing workbook headers.
