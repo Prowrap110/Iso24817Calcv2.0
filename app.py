@@ -53,6 +53,7 @@ HELP={
  'effective_diameter_mm':'Assessor-defined effective opening, covering current and future pressurized/unbonded footprint, filler and stopgap.',
  'qualified_wall_loss_pct':'Maximum wall-loss envelope from the referenced system qualification used for substrate credit.',
  'ffs_ref':'Optional reference for the assessment record. Leaving this blank does not bypass applicability or capacity checks.',
+ 'grouping_ref':'Optional inspection or grouping reference for the calculation record. Dimensions and noninteraction confirmation, overall zone span and applicable measured-defect checks remain required.',
  'axial_mawp_bar':'Optional. Blank calculates axial capacity from the assessed remaining-pipe Ps (Modified B31G by default). Enter the damaged pipe MAWP in bar to override only the pressure used for axial force Fs = π × OD² × MAWP / 40000 [kN]. Hoop Ps remains unchanged; combined-stress thickness can change.',
  'assessed_axial_capacity_kn':'Existing force override retained. Clear it to use automatic Ps or the manual axial MAWP in bar. Do not enter both overrides.',
  'original_design_factor':'Enter the original pipeline design factor as a decimal, for example 0.72. Automatic B31G safety factor = max(1 / design factor, 1.25).',
@@ -63,7 +64,7 @@ HELP={
 
 def widget(key):
     f=FIELD_DEFINITIONS[key];kw=dict(key='case_'+key,on_change=clear_result,help=HELP.get(key))
-    if f['kind']=='text': st.text_input('Fitness-for-service reference (optional)' if key=='ffs_ref' else f['label'],**kw)
+    if f['kind']=='text': st.text_input({'ffs_ref':'Fitness-for-service reference (optional)','grouping_ref':'Inspection / grouping assessment reference (optional)'}.get(key,f['label']),**kw)
     elif f['kind']=='select': st.selectbox(f['label'],f['choices'],**kw)
     elif f['kind']=='bool': st.checkbox(f['label'],**kw)
     else:
@@ -118,7 +119,7 @@ for section, title in SECTIONS.items():
                 threshold = f"Current threshold: {3 * wall:.2f} mm." if wall else "Enter nominal wall to display the threshold."
                 st.caption(f"Independent-defect rule: separation exceeds 3t. {threshold}")
                 if case["defect_mode"] == "Independent 10x10":
-                    st.info("Each assessed pit is 10 × 10 mm. Enter the overall zone span separately and confirm the inspection/grouping basis.")
+                    st.info("Each assessed pit is 10 × 10 mm. Enter Overall repair-zone span [mm] and confirm Dimensions and noninteraction confirmed. The inspection/grouping reference is optional.")
             if uses_measured_defects(case):
                 config = {
                     "repair_id": st.column_config.TextColumn("Repair ID"),

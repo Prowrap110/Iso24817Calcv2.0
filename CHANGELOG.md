@@ -1,5 +1,11 @@
 # Changelog
 
+## Optional grouping reference — 2026-11-11 (version remains 2.0.0)
+
+- Make the inspection/grouping assessment reference optional in both independent-defect modes and both calculators.
+- Retain dimension/noninteraction confirmation, external-corrosion applicability, repair-zone extent, measured geometry and spacing checks.
+- Clarify the single form, batch guidance and template comments while preserving existing workbook field keys and labels.
+
 ## Axial capacity from pressure — 2026-11-11 (version remains 2.0.0)
 
 - Default new remaining-capacity assessments to Modified B31G and axial credit to `Fs = A × Ps`, using final credited Ps after existing limits.
