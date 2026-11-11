@@ -55,3 +55,9 @@ When the manual B31G assessment safety-factor input is blank after workbook inhe
 An explicitly entered safety factor is a manual override and must be finite and at least 1.25. It does not require a design factor for safety-factor selection, although the selected substrate route still needs its other allowable-stress inputs. An entered design factor is validated even when a manual override is used. Missing or invalid applicable inputs stop the affected case.
 
 Both apps show the selected factor and its automatic/manual basis. PDF/JSON calculation details and batch Excel effective inputs record the value actually used. Existing v2.0 workbook columns remain compatible: populated safety-factor cells retain their manual values. Blank repair cells inherit any line or batch override, so clear inherited overrides as well to return to automatic calculation. The application version remains v2.0 / 2.0.0.
+
+## Optional fitness-for-service reference — v2.0 revision, 11 November 2026
+
+The `ffs_ref` field is optional for Modified B31G and external assessed-capacity routes. It is retained for traceability when provided, but a blank reference is not an engineering hold. The Modified B31G material specification, original design code, straight-pipe corrosion restriction, strength/temperature limits, metal-loss limit and safety-factor validation remain unchanged. The external route still requires assessed MAWP; both substrate-credit routes retain their end-of-life wall, qualification-envelope and axial-capacity checks. Dent-assessment and substrate-credit qualification references are separate inputs and remain unchanged.
+
+The single form labels the reference optional. Batch Setup notes and table-header comments explain its optional status while preserving the v2.0 workbook column contract.

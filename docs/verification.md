@@ -31,3 +31,7 @@ A separate reviewer checked the normative source pages and numerical witnesses. 
 - Source standards, test-report PDFs, local workflow notes, credentials and user project records are excluded from the release repository.
 
 Both application entry points use `prowrap_v2.engine.evaluate_case`. Dependency versions are pinned in `requirements.txt`.
+
+## Optional-reference revision — 11 November 2026
+
+`python3 -m pytest -q`: **128 passed**. Verified blank/null references preserve B31G capacity and repair results; material, design-code, straight-pipe corrosion, strength, temperature, wall-loss and safety-factor checks still reject out-of-scope inputs. External assessed MAWP remains required. Single and batch app submissions with blank references produce matching results, and the invalid-factor batch row remains isolated without installation quantities. Version remains 2.0.0.
