@@ -108,7 +108,7 @@ def test_procurement_widths_and_putty_use_zone_not_individual_pit():
     c=valid_case();c.update(defect_mode='Independent 10x10',zone_length_mm=450,independence_confirmed=True,grouping_ref='Map',cloth_widths='300')
     r=evaluate_case(c);assert r['status']=='CALCULATED',r
     assert r['results']['count_500']==0
-    assert r['results']['putty_kg']==1.5
+    assert r['results']['putty_kg']==4
 
 def test_population_missing_od_stays_invalid_without_exception():
     c=valid_case();c.update(od_mm=None,mechanism='Dent no-crack',dent_mode='60/40 population',purpose='Estimate')
