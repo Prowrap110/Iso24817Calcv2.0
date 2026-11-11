@@ -142,7 +142,9 @@ def test_text_is_preserved_without_exporting_a_formula(batch):
     wb = load_workbook(BytesIO(output), data_only=False)
     assert wb["Results"]["A5"].value == "=1+1"
     assert wb["Results"]["A5"].data_type == "s"
-    assert not any(cell.data_type == "f" for sheet in wb for row in sheet for cell in row)
+    # Formula-driven pricing is authored only on the commercial summary. Input
+    # text remains literal everywhere, including identifiers starting with '='.
+    assert not any(cell.data_type == "f" for sheet in wb if sheet.title != "Summary and Cost" for row in sheet for cell in row)
 
 
 def test_case_level_details_override_defaults_but_conflicts_fail(batch):
