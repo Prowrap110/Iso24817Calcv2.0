@@ -11,6 +11,16 @@ Single-repair and batch composite-repair calculators for ISO 24817:2026. Both ap
 
 The batch template contains Batch Setup, Line Defaults, Repair Cases, Defect Details, and Load and Engineering Details. Use the template from v2.0; older workbooks have a different input contract. Blank repair cells inherit line or batch values. Explicit zero and False remain valid overrides.
 
+## Calculation pressure
+
+**Minimum design pressure defaults to 0 bar** in both calculators and remains editable. In the single form, **Design pressure [bar]** and **MAOP [bar]** appear side by side; select **Pressure used for calculations** to use either Design pressure (default) or MAOP. The selected positive pressure drives the base repair calculation and applicable pressure bounds. The unselected pressure may be blank; if entered, it must still be a valid positive number. The input record preserves both entered values, and the form, results and PDF/JSON/Excel records identify the pressure actually used.
+
+MAOP is the pipeline's maximum allowable operating pressure. It is a pressure demand input, separate from the impaired-pipe assessed MAWP and the axial-only MAWP override used for remaining-steel capacity. Selecting MAOP does not replace either capacity input. Minimum and installation pressures must be between zero and the selected calculation pressure; cyclic bounds and all other checks remain active.
+
+Additional named load cases retain their explicit pressure values, which override the selected base pressure for those cases. A blank additional load-case pressure inherits the selected base pressure. Every case is assessed and the governing result is used.
+
+Batch settings follow the existing repair/engineering → line → batch → calculator-default precedence. Existing v2.0 workbooks without the new MAOP/selection fields remain accepted and use Design pressure; explicit minimum pressures and other overrides remain preserved. The current template adds the two fields while keeping version v2.0.
+
 ## B31G safety factor
 
 Automatic selection uses **max(1 ÷ original pipeline design factor, 1.25)**. Enter the design factor as a decimal (for example, 0.72). Leave the B31G assessment safety factor blank to use automatic selection, or enter a manual override of at least 1.25. In batch workbooks, blank repair cells inherit any line/batch override; clear those too to use automatic selection. The preview and exported records show the factor actually used. Existing v2.0 workbooks remain compatible.

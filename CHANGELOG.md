@@ -1,5 +1,13 @@
 # Changelog
 
+## Design pressure / MAOP selection — 2026-11-11 (version remains 2.0.0)
+
+- Default minimum design pressure to 0 bar with manual entry retained in both calculators.
+- Add MAOP beside Design pressure and a Design pressure / MAOP selection; Design pressure remains the default.
+- Apply the selected pressure consistently to the base calculation, pressure-bound/applicability checks and sizing, while retaining explicit additional load-case pressures.
+- Preserve entered pressures and show the effective pressure/basis in the form, results and exported records.
+- Accept prior v2.0 workbook schemas and preserve manual/default inheritance and remaining-pipe capacity inputs.
+
 ## Default qualified wall-loss limit — 2026-11-11 (version remains 2.0.0)
 
 - Default the qualified wall-loss limit to 81% for PRW110 and PRW110+ in both calculators, with editable manual overrides.

@@ -9,6 +9,7 @@ from prowrap_v2.ui_logic import (
 )
 from prowrap_v2.materials import get_material
 from prowrap_v2.assessment import b31g_factor_details
+from prowrap_v2.pressure import pressure_basis_details
 from prowrap_v2.engine import evaluate_case, expand_population
 from prowrap_v2.examples import example_case
 from prowrap_v2.reporting import report_pdf, report_json
@@ -45,7 +46,10 @@ with right:
 
 HELP={
  'initial_service_life_years':'Initial service life may be shorter than design life. The design equations use design life.',
- 'min_pressure_bar':'Minimum design pressure for the installation/disbond assessment. Enter an explicit zero if depressurization is credible.',
+ 'min_pressure_bar':'Defaults to 0 bar for possible depressurization. Edit to enter a different minimum pressure for the installation/disbond assessment.',
+ 'pressure_bar':'Entered design pressure. Used for the base calculation when Design pressure is selected below.',
+ 'maop_bar':'Maximum Allowable Operating Pressure of the pipeline. Used for the base calculation when MAOP is selected below; separate from impaired-pipe MAWP and the axial-capacity MAWP override.',
+ 'pressure_basis':'Select the pressure used for the base repair calculation. Additional named load cases retain their explicitly entered pressure values.',
  'through_wall':'Includes a hole or leak that has already been temporarily sealed.',
  'zone_length_mm':'Full outer-to-outer span to be covered, distinct from individual pit length.',
  'load_basis':'Pressure-only includes the pressure end load. Select additional loads for axial force, shear, bending or torsion.',
@@ -66,6 +70,7 @@ HELP={
 def widget(key):
     f=FIELD_DEFINITIONS[key];kw=dict(key='case_'+key,on_change=clear_result,help=HELP.get(key))
     if f['kind']=='text': st.text_input({'ffs_ref':'Fitness-for-service reference (optional)','grouping_ref':'Inspection / grouping assessment reference (optional)','qualification_ref':'Substrate-credit qualification reference (optional)'}.get(key,f['label']),**kw)
+    elif key=='pressure_basis': st.radio(f['label'],f['choices'],horizontal=True,**kw)
     elif f['kind']=='select': st.selectbox(f['label'],f['choices'],**kw)
     elif f['kind']=='bool': st.checkbox(f['label'],**kw)
     else:
@@ -94,8 +99,18 @@ for section, title in SECTIONS.items():
             st.caption('Axial capacity defaults to Fs = A × Ps. Leave the axial MAWP override blank to use the assessed Ps; enter bar to override the axial basis only. Explicit zero means no axial credit.')
             st.caption('Qualified wall-loss limit defaults to 81% for PRW110 and PRW110+. Edit the percentage below for a manual override.')
         visible = active_fields(case)
+        if section == 4:
+            pressure_cols=st.columns(2)
+            with pressure_cols[0]:widget('pressure_bar')
+            with pressure_cols[1]:widget('maop_bar')
+            widget('pressure_basis')
+            try:
+                pressure=pressure_basis_details(current_case())
+                st.caption(f"Calculation pressure: {pressure['calculation_pressure_bar']:g} bar · {pressure['basis']}")
+            except ValueError as ex:st.caption(str(ex))
         cols = st.columns(2)
         keys = [key for key in visible if FIELD_DEFINITIONS[key]["section"] == section and key not in OPENING_FIELDS and key != 'assessed_axial_capacity_kn']
+        if section == 4:keys=['min_pressure_bar','install_pressure_bar','temperature_c','min_temperature_c','install_temperature_c']
         for index, key in enumerate(keys):
             with cols[index % 2]:
                 widget(key)
@@ -146,7 +161,7 @@ for section, title in SECTIONS.items():
                         widget(key)
         if section == 6:
             with st.expander("Additional load cases (optional)"):
-                st.caption("Base conditions are always checked. Each added case overrides only its populated fields; use the same Repair ID.")
+                st.caption("Base conditions use the selected Design pressure or MAOP. An explicit additional load-case pressure is assessed at that value; a blank pressure inherits the selected base pressure. Other populated fields override base conditions. Use the same Repair ID.")
                 config = {
                     "repair_id": st.column_config.TextColumn("Repair ID"),
                     "load_id": st.column_config.TextColumn("Load case ID"),
@@ -181,6 +196,10 @@ if st.session_state.get('calculation_results'):
     for index,result in enumerate(records):
         status=result['status'];vals=result.get('results',{});valid=status in ('CALCULATED','ESTIMATE')
         if len(records)>1: st.subheader(result['repair_id'])
+        if result.get('details',{}).get('pressure_basis'):
+            pressure=result['details']['pressure_basis']
+            st.metric('Calculation pressure',f"{pressure['calculation_pressure_bar']:g} bar")
+            st.caption('Base pressure basis: '+pressure['basis'])
         if valid:
             (st.info if status=='ESTIMATE' else st.success)(status+' · Calculated checks completed. Review the record with the project work pack.')
             a,b,c=st.columns(3)

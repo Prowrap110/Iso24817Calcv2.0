@@ -9,10 +9,11 @@ from prowrap_v2.batch import (
 )
 from prowrap_v2.schema import FIELD_DEFINITIONS
 from prowrap_v2.assessment import b31g_factor_details
+from prowrap_v2.pressure import pressure_basis_details
 
 MIME_XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 PREVIEW_FIELDS = (
-    "asset_id", "product", "mechanism", "od_mm", "wall_mm", "pressure_bar", "temperature_c",
+    "asset_id", "product", "mechanism", "od_mm", "wall_mm", "pressure_bar", "maop_bar", "min_pressure_bar", "temperature_c",
     "install_pressure_bar", "load_basis", "growth_basis", "landing_mode", "quantity",
 )
 
@@ -23,6 +24,13 @@ def _template():
 
 
 def _preview(batch):
+    def pressure_columns(case):
+        try:
+            selected = pressure_basis_details(case)
+            return {'Calculation pressure [bar]': selected['calculation_pressure_bar'], 'Pressure basis': selected['basis']}
+        except ValueError as error:
+            return {'Calculation pressure [bar]': None, 'Pressure basis': str(error)}
+
     def factor_columns(case):
         if case['substrate_route'] == 'Full laminate' or case['ffs_method'] != 'Modified B31G':
             return {'B31G safety factor used': None, 'B31G factor basis': 'Not applicable'}
@@ -37,6 +45,7 @@ def _preview(batch):
             {
                 "Row": repair.source.number, "Repair ID": repair.case["repair_id"],
                 **{FIELD_DEFINITIONS[key]["label"]: repair.case[key] for key in PREVIEW_FIELDS},
+                **pressure_columns(repair.case),
                 **factor_columns(repair.case),
                 "Defect records": len(repair.defects), "Load records": len(repair.loads),
                 "Import check": "Correct inputs" if repair.issues else "Ready to assess",
@@ -92,6 +101,7 @@ def main():
             file_name="PROWRAP_CalcBatch_v2_Template.xlsx", on_click="ignore",
         )
         st.caption("Enter shared values on Batch Setup or Line Defaults. Add one row per repair zone.")
+        st.caption('Choose Design pressure (default) or MAOP for calculations. Minimum design pressure defaults to 0 bar and can be overridden. Blank cells inherit line/batch settings; explicitly entered load-case pressures still apply.')
         st.caption('Fitness-for-service reference is optional. Include an available reference for the calculation record.')
         st.caption('Substrate-credit qualification reference is optional. Qualified wall-loss limit defaults to 81% for PRW110 and PRW110+. Enter a percentage in Batch Setup, Line Defaults or repair inputs to override; end-of-life wall loss must remain strictly below the selected limit.')
         st.caption('Inspection / grouping assessment reference is optional. Independent defects still require confirmed dimensions/noninteraction, the overall zone span and applicable spacing checks.')
@@ -149,6 +159,14 @@ def main():
     b.metric("Estimates", estimated)
     c.metric("Require review", other)
     st.caption("Results are for engineering review. The export keeps estimate quantities separate.")
+    pressure_rows = [
+        {'Repair ID': record['repair_id'],
+         'Pressure basis': record['details']['pressure_basis']['basis'],
+         'Calculation pressure [bar]': record['details']['pressure_basis']['calculation_pressure_bar']}
+        for record in results if record['status'] in ('CALCULATED','ESTIMATE')
+    ]
+    if pressure_rows:
+        st.dataframe(pressure_rows, hide_index=True, width='stretch')
     capacity_rows = [
         {"Repair ID": record['repair_id'],
          "Remaining-pipe Ps [bar]": record['details']['substrate_pressure_mpa']*10,
