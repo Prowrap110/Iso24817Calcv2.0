@@ -101,6 +101,7 @@ def main():
             file_name="PROWRAP_CalcBatch_v2_Template.xlsx", on_click="ignore",
         )
         st.caption("Enter shared values on Batch Setup or Line Defaults. Add one row per repair zone.")
+        st.caption("The results workbook includes blank pricing cells for fabric per m², epoxy per litre and a sales multiplier, with automatic sale totals.")
         st.caption('Choose Design pressure (default) or MAOP for calculations. Minimum design pressure defaults to 0 bar and can be overridden. Blank cells inherit line/batch settings; explicitly entered load-case pressures still apply.')
         st.caption('Fitness-for-service reference is optional. Include an available reference for the calculation record.')
         st.caption('Substrate-credit qualification reference is optional. Qualified wall-loss limit defaults to 81% for PRW110 and PRW110+. Enter a percentage in Batch Setup, Line Defaults or repair inputs to override; end-of-life wall loss must remain strictly below the selected limit.')
@@ -182,6 +183,7 @@ def main():
         "Download results workbook", data=workbook, mime=MIME_XLSX, type="primary",
         file_name="PROWRAP_CalcBatch_v2_Results.xlsx", on_click="ignore",
     )
+    st.caption("Open Summary and Cost in Excel to enter prices, densities or litre quantities, and the sales multiplier. Prices and EXW/FOB/CFR totals calculate automatically.")
 
 
 if __name__ == "__main__":
