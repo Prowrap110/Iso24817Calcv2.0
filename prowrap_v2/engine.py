@@ -5,7 +5,7 @@ from .schema import default_case, FIELD_DEFINITIONS, LOAD_FIELDS
 from .materials import get_material
 from .physics import calculate_structural, bond_stress, component_factor, tee_pressure_limit
 from .sealing import solve_seal
-from .assessment import substrate_capacity
+from .assessment import substrate_capacity, b31g_factor_details
 from .procurement import quantities
 
 class Hold(ValueError):pass
@@ -156,6 +156,8 @@ def evaluate_case(case,defects=None,loads=None):
             if c['substrate_route']!='Full laminate':raise Hold('Type B uses full laminate hoop and axial structural checks; substrate credit is unavailable.')
         try:ps,fs=substrate_capacity(c,gs,eol)
         except ValueError as ex:raise Hold(str(ex)) from ex
+        if c['substrate_route']!='Full laminate' and c['ffs_method']=='Modified B31G':
+            r['details']['b31g']=b31g_factor_details(c)
         material=get_material(c['product']);r['details']['substrate_pressure_mpa']=ps
         effective=[('Base',deepcopy(c))];ids=set()
         for i,load in enumerate(loads or []):

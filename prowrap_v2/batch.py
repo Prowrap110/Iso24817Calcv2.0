@@ -9,6 +9,7 @@ from xml.etree.ElementTree import ParseError
 from zipfile import BadZipFile, ZipFile
 
 from openpyxl import Workbook, load_workbook
+from openpyxl.comments import Comment
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 from openpyxl.utils.exceptions import InvalidFileException
@@ -208,6 +209,8 @@ def _input_table(workbook, title, instruction, fields, visible):
             dimension.outlineLevel = 1
             dimension.hidden = True
         _add_choice_validation(sheet, key, f"{letter}{FIRST_ROW}:{letter}{4 + LIMITS[title]}")
+        if key in ('b31g_safety_factor', 'original_design_factor'):
+            sheet.cell(4, index).comment = Comment(_setup_note(key), 'PROWRAP')
         for row in range(FIRST_ROW, 15):
             cell = sheet.cell(row, index)
             cell.fill = PatternFill("solid", fgColor=PALE_BLUE if row % 2 else "F7FAFD")
@@ -281,6 +284,10 @@ def template_workbook():
 
 
 def _setup_note(key):
+    if key == 'b31g_safety_factor':
+        return 'Optional manual override (minimum 1.25). Blank inherits any line/batch override; if none, automatic = max(1 / original design factor, 1.25).'
+    if key == 'original_design_factor':
+        return 'Decimal factor, e.g. 0.72. Required for automatic B31G safety factor; automatic = max(1 / factor, 1.25).'
     default = FIELD_DEFINITIONS[key]["default"]
     if key in ("growth_basis", "load_basis", "landing_mode"):
         return "Choose the confirmed basis for the repairs in scope."
@@ -617,6 +624,9 @@ def _output_table(workbook, title, instruction, headers, rows, widths):
 def _effective_inputs(calculations):
     for repair, case, result in calculations:
         result_id = result["repair_id"]
+        selected = result.get('details', {}).get('b31g')
+        if selected:
+            yield result_id, 'Repair', 'B31G safety factor used', selected['safety_factor'], selected['source']
         for key, value in case.items():
             if key not in FIELD_DEFINITIONS or _is_blank(value):
                 continue
