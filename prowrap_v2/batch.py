@@ -288,7 +288,7 @@ def _setup_note(key):
     if key == 'qualification_ref':
         return 'Optional substrate-credit qualification reference. Blank does not prevent calculation; the confirmed qualified wall-loss limit and all substrate-credit checks still apply.'
     if key == 'qualified_wall_loss_pct':
-        return 'Required for substrate credit. Enter the Annex C qualified maximum wall-loss percentage; assessed end-of-life wall loss must be strictly below this limit.'
+        return 'Default 81% for PRW110 and PRW110+. Enter a manual limit to override. Blank inherits repair/engineering, line or batch settings; with no entered limit, uses 81%. End-of-life wall loss must be strictly below the selected limit.'
     if key == 'grouping_ref':
         return 'Optional inspection/grouping reference. Blank does not prevent calculation. Confirm dimensions and noninteraction and enter the overall zone span; independent-defect applicability checks still apply.'
     if key == 'axial_mawp_bar':
