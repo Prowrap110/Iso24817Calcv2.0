@@ -19,10 +19,17 @@ def quantities(case, length, plies, installed_mm):
     """Return job/group totals, already multiplied by quantity exactly once.
 
     Engineering length, plies and installed thickness supplied here remain per repair.
+    The explicit putty_per_repair_kg result records consumption before quantity scaling.
     """
     plan=bands(length,case['cloth_widths']);q=int(case['quantity'])
     # Sum each layer mid-surface perimeter; exact cylindrical ply-volume area.
     area=math.pi*(case['od_mm']+installed_mm)*plan['gross_mm']*plies/1e6
-    if case['mechanism']=='Dent no-crack':putty=case['defect_length_mm']*case['defect_width_mm']*case['dent_depth_mm']*.000002
-    else:putty=math.ceil((case.get('zone_length_mm') or case['defect_length_mm'])/200)*.5
-    return dict(count_500=plan['count_500']*q,count_300=plan['count_300']*q,fabric_area_m2=area*q,laminate_epoxy_kg=2*area*q,putty_kg=putty*q,total_epoxy_kg=(2*area+putty)*q,quantity=q)
+    putty=case.get('putty_kg_per_repair')
+    if putty is None:
+        if case['mechanism']=='Dent no-crack':
+            # One third of L x W x depth, at the existing 2 kg/L density.
+            putty=case['defect_length_mm']*case['defect_width_mm']*case['dent_depth_mm']*.000002/3
+        else:
+            # 2 kg through 200 mm, then +1 kg for each further started 200 mm.
+            putty=1+math.ceil((case.get('zone_length_mm') or case['defect_length_mm'])/200)
+    return dict(count_500=plan['count_500']*q,count_300=plan['count_300']*q,fabric_area_m2=area*q,laminate_epoxy_kg=2*area*q,putty_per_repair_kg=putty,putty_kg=putty*q,total_epoxy_kg=(2*area+putty)*q,quantity=q)

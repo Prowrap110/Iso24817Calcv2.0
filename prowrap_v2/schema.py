@@ -93,6 +93,7 @@ _field('thicker_repair_ref','Thicker-repair test reference','text','',8)
 _field('quantity','Number of identical repairs','number',1,9)
 _field('feasibility_ref','Feasibility / work-pack reference','text','',9)
 _field('notes','Project notes','text','',9)
+_field('putty_kg_per_repair','Putty consumption per defect [kg]','number',None,9)
 
 SECTIONS = {1:'Project information',2:'Product and design basis',3:'Pipe and component',4:'Pressure and temperature',5:'Defect information',6:'Loads and cycling',7:'Existing pipe capacity',8:'Installation and available space',9:'Quantities and reporting'}
 DEFECT_FIELDS = ['repair_id','defect_id','length_mm','width_mm','remaining_wall_mm','separation_mm','independence_confirmed']

@@ -32,7 +32,7 @@ def _validate(c):
     if c['pressure_bar']<=0 or not 0<=c['min_pressure_bar']<=c['pressure_bar'] or not 0<=c['install_pressure_bar']<=c['pressure_bar']:raise InputError('Minimum and installation pressure must lie between zero and the selected calculation pressure.')
     if c['min_temperature_c']>c['temperature_c']:raise InputError('Minimum temperature exceeds maximum temperature.')
     if c.get('zone_length_mm') is not None and c['zone_length_mm']<c['defect_length_mm']:raise InputError('Repair-zone span cannot be smaller than the entered defect length.')
-    for k in ('corrosion_rate_mm_year','assessed_mawp_bar','axial_mawp_bar','assessed_axial_capacity_kn','other_thickness_mm','dent_depth_mm','effective_diameter_mm','effective_axial_mm','effective_circ_mm','landing_left_mm','landing_right_mm','thicker_repair_limit_mm'):
+    for k in ('corrosion_rate_mm_year','assessed_mawp_bar','axial_mawp_bar','assessed_axial_capacity_kn','other_thickness_mm','dent_depth_mm','effective_diameter_mm','effective_axial_mm','effective_circ_mm','landing_left_mm','landing_right_mm','thicker_repair_limit_mm','putty_kg_per_repair'):
         if c.get(k) is not None and c[k]<0:raise InputError(f'{k} cannot be negative.')
     if c['load_basis']=='Pressure-only confirmed':
         if any(c.get(k) not in (None,0) for k in ('axial_kn','shear_kn','bending_knm','torsion_knm')):raise InputError('Pressure-only confirmation conflicts with entered additional loads.')

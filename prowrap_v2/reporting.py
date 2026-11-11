@@ -15,6 +15,7 @@ RESULT_LABELS = {
     'fabric_area_m2':'Fabric area total [m2]', 'laminate_epoxy_kg':'Laminate epoxy total [kg]',
     'putty_kg':'Putty total [kg]', 'total_epoxy_kg':'Total epoxy [kg]',
     'quantity':'Number of repairs', 'repair_type':'Defect design type',
+    'putty_per_repair_kg':'Putty per defect [kg]',
 }
 
 def _clean(value):

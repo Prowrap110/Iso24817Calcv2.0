@@ -44,13 +44,14 @@ CORE_CASE_FIELDS = (
     "repair_id", "line_id", "mechanism", "defect_mode", "defect_location", "through_wall",
     "prevent_containment", "component", "od_mm", "wall_mm", "remaining_wall_mm",
     "defect_length_mm", "defect_width_mm", "zone_length_mm", "growth_basis", "growth_ref",
-    "corrosion_rate_mm_year", "eol_wall_mm", "inspection_ref", "quantity",
+    "corrosion_rate_mm_year", "eol_wall_mm", "inspection_ref", "quantity", "putty_kg_per_repair",
 )
 COMMON_FIELDS = tuple(key for key in FIELD_DEFINITIONS if key != "repair_id")
-LINE_FIELDS = ("line_id", "quantity") + tuple(
-    key for key in COMMON_FIELDS if key != "quantity" and FIELD_DEFINITIONS[key]["section"] in (3, 4, 6)
+LINE_QUANTITY_FIELDS = ("quantity", "putty_kg_per_repair")
+LINE_FIELDS = ("line_id",) + LINE_QUANTITY_FIELDS + tuple(
+    key for key in COMMON_FIELDS if key not in LINE_QUANTITY_FIELDS and FIELD_DEFINITIONS[key]["section"] in (3, 4, 6)
 ) + tuple(
-    key for key in COMMON_FIELDS if key != "quantity" and FIELD_DEFINITIONS[key]["section"] not in (3, 4, 6)
+    key for key in COMMON_FIELDS if key not in LINE_QUANTITY_FIELDS and FIELD_DEFINITIONS[key]["section"] not in (3, 4, 6)
 )
 CASE_FIELDS = CORE_CASE_FIELDS + tuple(
     key for key in COMMON_FIELDS if key not in CORE_CASE_FIELDS
@@ -91,6 +92,7 @@ RESULT_FIELDS = {
     "putty_kg": "Putty total [kg]",
     "total_epoxy_kg": "Epoxy including putty [kg]",
     "quantity": "Identical repairs",
+    "putty_per_repair_kg": "Putty per defect [kg]",
 }
 
 
@@ -213,7 +215,7 @@ def _input_table(workbook, title, instruction, fields, visible):
             dimension.outlineLevel = 1
             dimension.hidden = True
         _add_choice_validation(sheet, key, f"{letter}{FIRST_ROW}:{letter}{4 + LIMITS[title]}")
-        if key in ('pressure_basis', 'maop_bar', 'min_pressure_bar', 'b31g_safety_factor', 'original_design_factor', 'ffs_ref', 'grouping_ref', 'qualification_ref', 'qualified_wall_loss_pct', 'axial_mawp_bar', 'assessed_axial_capacity_kn'):
+        if key in ('pressure_basis', 'maop_bar', 'min_pressure_bar', 'b31g_safety_factor', 'original_design_factor', 'ffs_ref', 'grouping_ref', 'qualification_ref', 'qualified_wall_loss_pct', 'axial_mawp_bar', 'assessed_axial_capacity_kn', 'putty_kg_per_repair'):
             sheet.cell(4, index).comment = Comment(_setup_note(key), 'PROWRAP')
         for row in range(FIRST_ROW, 15):
             cell = sheet.cell(row, index)
@@ -273,7 +275,7 @@ def template_workbook():
         cells[0].alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
     _input_table(
         workbook, LINES, "Optional. Use one row per named line. Select the same Line ID on Repair Cases.",
-        LINE_FIELDS, 24,
+        LINE_FIELDS, 25,
     )
     _input_table(
         workbook, CASES, "One row per repair zone. Expand the column group for overrides and additional inputs.",
@@ -293,6 +295,8 @@ def template_workbook():
 
 
 def _setup_note(key):
+    if key == 'putty_kg_per_repair':
+        return 'Optional putty kg for one defect/repair row. Repair entry overrides line and batch values; blank inherits, then uses the automatic allowance. Explicit zero means no putty. Quantity is multiplied once. Automatic corrosion allowance: 2 kg up to 200 mm axial defect/zone length, 3 kg up to 400 mm, then +1 kg per further started 200 mm. Dents use one third of rectangular defect volume at 2 kg/L.'
     if key == 'strain_basis':
         return 'LTS uses the owner-selected long-term strain 0.007 (0.7%) for both products before design-life, temperature, cyclic and thermal-strain factors. Default retains the standard strain route.'
     if key == 'substrate_route':
@@ -337,6 +341,8 @@ def _setup_note(key):
 
 def _setup_cell(sheet, row, key):
     sheet.cell(row, 2).fill = PatternFill("solid", fgColor=PALE_BLUE)
+    if key == 'putty_kg_per_repair':
+        sheet.cell(row, 2).comment = Comment(_setup_note(key), 'PROWRAP')
     if _definition(key)["kind"] == "text":
         sheet.cell(row, 2).number_format = "@"
     _add_choice_validation(sheet, key, f"B{row}")
@@ -390,6 +396,8 @@ def _parse_cell(cell, key):
         return int(number)
     if key in ("fabric_rate", "epoxy_rate") and number < 0:
         raise ValueError("Enter a nonnegative rate.")
+    if key == "putty_kg_per_repair" and number < 0:
+        raise ValueError("Enter a nonnegative putty quantity per defect.")
     return number
 
 
@@ -427,7 +435,7 @@ def _read_setup(sheet):
         set(), {'axial_mawp_bar'}, {'pressure_basis', 'maop_bar'},
         {'pressure_basis', 'maop_bar', 'axial_mawp_bar'},
     )
-    if missing not in allowed_missing:
+    if missing - {'putty_kg_per_repair'} not in allowed_missing:
         raise WorkbookError("Batch Setup fields are missing. Copy values into a fresh template.")
     record.missing_fields = frozenset(missing)
     record.legacy_schema = 'axial_mawp_bar' in missing
