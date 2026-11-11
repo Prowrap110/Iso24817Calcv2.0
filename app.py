@@ -69,6 +69,7 @@ HELP={
  'dent_ffs_ref':'Reference for the assessment establishing dent MAWP and applicability. Required for measured dents and population estimates.',
  'cure_basis':'Report schedule uses the ISO 9.3 temperature-factor fallback. A confirmed qualified schedule requires its procedure reference.',
  'thicker_repair_limit_mm':'Leave blank to apply the normal min(D/6, 25 mm) limit. A larger limit requires its specific supporting test reference.',
+ 'putty_kg_per_repair':'Optional kg for one defect / repair zone. Blank uses the automatic allowance; zero means no putty. The amount is multiplied by Number of identical repairs exactly once.',
 }
 
 def widget(key):
@@ -91,8 +92,9 @@ def widget(key):
             st.session_state['case_'+key]=value
         fmt='%.8f' if key=='steel_cte' else '%.3f'
         label='Manual B31G safety factor override (optional)' if key=='b31g_safety_factor' else f['label']
+        if key == 'putty_kg_per_repair':label += ' (optional)'
         if dent and key == 'allowable_stress_mpa':label = 'Allowable substrate stress override [MPa] (optional)'
-        step=0.000001 if key=='steel_cte' else .01 if key in ('original_design_factor','b31g_safety_factor') else 1.0
+        step=0.000001 if key=='steel_cte' else .01 if key in ('original_design_factor','b31g_safety_factor') else .1 if key=='putty_kg_per_repair' else 1.0
         st.number_input(label,value=None,format=fmt,step=step,**kw)
 
 def editor_records(fields, config, key):
@@ -130,6 +132,9 @@ for section, title in SECTIONS.items():
         if dent and section == 3:keys = [key for key in keys if key != 'allowable_stress_mpa']
         if dent and section == 7:
             keys = ['original_design_factor', 'allowable_stress_mpa'] + [key for key in keys if key != 'original_design_factor']
+        if section == 9:
+            keys = ['quantity', 'putty_kg_per_repair'] + [key for key in keys if key not in ('quantity', 'putty_kg_per_repair')]
+            st.caption('Putty per defect / repair zone: 2 kg up to 200 mm, 3 kg up to 400 mm, then +1 kg per further started 200 mm. Dents use one-third of length × width × depth at 2 kg/L. Leave the override blank to use these defaults.')
         for index, key in enumerate(keys):
             with cols[index % 2]:
                 widget(key)
@@ -245,6 +250,7 @@ if st.session_state.get('calculation_results'):
             a.metric('Fabric total',f"{vals['fabric_area_m2']:.2f} m²")
             b.metric('Laminate epoxy total',f"{vals['laminate_epoxy_kg']:.2f} kg")
             c.metric('Putty total',f"{vals['putty_kg']:.2f} kg")
+            st.caption(f"Putty: {vals['putty_per_repair_kg']:.3f} kg per defect × {vals.get('quantity',1):g} identical repairs = {vals['putty_kg']:.3f} kg total.")
             st.write(f"Total fabric bands: **{vals['count_500']} × 500 mm** and **{vals['count_300']} × 300 mm**. Total epoxy: **{vals['total_epoxy_kg']:.2f} kg**. Quantity: **{vals.get('quantity',1):g}**.")
             if result['inputs']['substrate_route'] != 'Full laminate':
                 axial=result['details']['axial_capacity']

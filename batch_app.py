@@ -14,7 +14,7 @@ from prowrap_v2.pressure import pressure_basis_details
 MIME_XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 PREVIEW_FIELDS = (
     "asset_id", "product", "mechanism", "od_mm", "wall_mm", "pressure_bar", "maop_bar", "min_pressure_bar", "temperature_c",
-    "install_pressure_bar", "load_basis", "growth_basis", "landing_mode", "quantity",
+    "install_pressure_bar", "load_basis", "growth_basis", "landing_mode", "quantity", "putty_kg_per_repair",
 )
 
 
@@ -102,6 +102,8 @@ def main():
         )
         st.caption("Enter shared values on Batch Setup or Line Defaults. Add one row per repair zone.")
         st.caption("Enter Number of identical repairs in Line Defaults column B. A linked repair with a blank quantity inherits it; Results shows the applied count under Identical repairs.")
+        st.caption("Putty consumption per defect [kg] is optional in Batch Setup, Line Defaults column C and Repair Cases. Repair values override line and batch defaults; blank inherits, then uses automatic putty. Zero is allowed. Quantity multiplies the per-defect amount once.")
+        st.caption("Automatic putty: corrosion uses 2 kg up to 200 mm axial defect/zone length, 3 kg up to 400 mm, then +1 kg for each further started 200 mm. Dents use one third of rectangular defect volume at 2 kg/L.")
         st.caption("The results workbook includes blank pricing cells for fabric per m², epoxy per litre and a sales multiplier, with automatic sale totals.")
         st.caption('Choose Design pressure (default) or MAOP for calculations. Minimum design pressure defaults to 0 bar and can be overridden. Blank cells inherit line/batch settings; explicitly entered load-case pressures still apply.')
         st.caption('Fitness-for-service reference is optional. Include an available reference for the calculation record.')

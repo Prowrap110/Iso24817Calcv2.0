@@ -1,5 +1,12 @@
 # Changelog
 
+## Putty consumption defaults and overrides — 2026-11-11 (version remains 2.0.0)
+
+- Use 2 kg per corrosion repair zone up to 200 mm, 3 kg up to 400 mm, then add 1 kg per further started 200 mm.
+- Use one-third of rectangular dent volume at the existing 2 kg/L estimating density.
+- Add an optional per-defect kg override to both calculators. Blank uses defaults and explicit zero is retained; batch repair entries override line and batch values.
+- Report per-defect putty separately from the quantity-multiplied total, preserving compatibility with existing v2.0 input workbooks.
+
 ## Design pressure / MAOP selection — 2026-11-11 (version remains 2.0.0)
 
 - Default minimum design pressure to 0 bar with manual entry retained in both calculators.
