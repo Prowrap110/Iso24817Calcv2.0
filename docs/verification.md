@@ -39,3 +39,7 @@ Both application entry points use `prowrap_v2.engine.evaluate_case`. Dependency 
 ## Axial-capacity revision — 11 November 2026
 
 `python3 -m pytest -q`: **151 passed**. Added numerical witnesses for automatic Fs from capped Ps and manual MAWP in bar; unchanged hoop Ps; explicit zero; legacy force preservation and clearing; invalid/conflicting overrides; hotter-case manual-capacity restrictions; inheritance and older workbook compatibility; matching single/batch calculations; and PDF/Excel capacity records. The original pre-revision workbook was also reimported successfully. An independent engineering/code review confirmed the ISO A × Ps basis, units, coupling, compatibility and validation scope. Version remains 2.0.0.
+
+## Optional grouping-reference revision — 11 November 2026
+
+`python3 -m pytest -q`: **167 passed**. Blank/null grouping references preserve calculated dimensions, materials and checks in both independent-defect modes. Regression checks retain mandatory confirmation, external-corrosion applicability, overall zone span, measured records, spacing and geometry checks. Single-app submission and batch upload calculate valid blank-reference cases while invalid cases retain holds and no installation quantities. Version remains 2.0.0.
