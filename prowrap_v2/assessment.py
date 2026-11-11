@@ -25,7 +25,8 @@ def b31g_factor_details(case):
 def modified_b31g(case,length,remaining):
     D,t,ys,ts=case['od_mm'],case['wall_mm'],case['smys_mpa'],case['smts_mpa']
     if case['mechanism']!='Corrosion' or case['component']!='Straight':raise ValueError('Modified B31G requires straight-pipe metal-loss corrosion.')
-    if not case.get('material_grade') or not case.get('design_code') or not case.get('ffs_ref'):raise ValueError('Modified B31G requires material, design-code and applicability assessment references.')
+    if not case.get('material_grade'):raise ValueError('Modified B31G requires the steel material specification / grade.')
+    if not case.get('design_code'):raise ValueError('Modified B31G requires the original design code.')
     if not (0<ys<=483 and ts>=ys and case['temperature_c']<120):raise ValueError('Modified B31G material/temperature scope is exceeded.')
     loss=(t-remaining)/t
     if not 0<=loss<=.8:raise ValueError('Modified B31G metal-loss ratio must be within 0–0.80.')
@@ -57,7 +58,7 @@ def substrate_capacity(case, groups, eol):
             if allowable<=0:raise ValueError('Allowable stress must be positive.')
             ps=min(ps,2*allowable*eol/case['od_mm'])
     else:
-        if not case.get('ffs_ref') or case.get('assessed_mawp_bar') is None:raise ValueError('Substrate credit requires referenced assessed MAWP.')
+        if case.get('assessed_mawp_bar') is None:raise ValueError('Substrate credit requires assessed impaired-pipe MAWP.')
         ps=case['assessed_mawp_bar']/10
     fs=case.get('assessed_axial_capacity_kn')
     if fs is None:raise ValueError('Substrate credit requires an assessed axial capacity; unknown capacity is not zero.')

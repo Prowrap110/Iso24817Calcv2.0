@@ -209,7 +209,7 @@ def _input_table(workbook, title, instruction, fields, visible):
             dimension.outlineLevel = 1
             dimension.hidden = True
         _add_choice_validation(sheet, key, f"{letter}{FIRST_ROW}:{letter}{4 + LIMITS[title]}")
-        if key in ('b31g_safety_factor', 'original_design_factor'):
+        if key in ('b31g_safety_factor', 'original_design_factor', 'ffs_ref'):
             sheet.cell(4, index).comment = Comment(_setup_note(key), 'PROWRAP')
         for row in range(FIRST_ROW, 15):
             cell = sheet.cell(row, index)
@@ -284,6 +284,8 @@ def template_workbook():
 
 
 def _setup_note(key):
+    if key == 'ffs_ref':
+        return 'Optional assessment reference. Blank does not prevent calculation; applicability and capacity checks still apply.'
     if key == 'b31g_safety_factor':
         return 'Optional manual override (minimum 1.25). Blank inherits any line/batch override; if none, automatic = max(1 / original design factor, 1.25).'
     if key == 'original_design_factor':
