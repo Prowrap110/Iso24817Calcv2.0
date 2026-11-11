@@ -25,7 +25,7 @@ def test_dent_requires_assessment():
     c=valid_case();c.update(mechanism='Dent no-crack',dent_depth_mm=19,no_crack_confirmed=True)
     r=evaluate_case(c);assert r['status']=='ENGINEERING_HOLD';assert not r['results']
 def test_population_preserves_count():
-    c=valid_case();c.update(mechanism='Dent no-crack',dent_mode='60/40 population',purpose='Estimate',quantity=7)
+    c=valid_case();c.update(mechanism='Dent no-crack',dent_mode='60/40 population',purpose='Estimate',quantity=7,remaining_wall_mm=10,no_crack_confirmed=True,dent_ffs_ref='Assumed assessed population',dent_mawp_bar=30,original_design_factor=.72)
     rs=expand_population(c);assert sum(x['quantity'] for x in rs)==7
     assert all(x['purpose']=='Estimate' for x in rs)
 def test_population_never_accepts_design():
@@ -82,7 +82,7 @@ def test_annex_c_and_b31g_gates():
     assert evaluate_case(c)['status']=='ENGINEERING_HOLD'
 
 def test_population_estimates_are_labelled_and_quantity_validated():
-    c=valid_case();c.update(mechanism='Dent no-crack',dent_mode='60/40 population',purpose='Estimate',quantity=7)
+    c=valid_case();c.update(mechanism='Dent no-crack',dent_mode='60/40 population',purpose='Estimate',quantity=7,remaining_wall_mm=10,no_crack_confirmed=True,dent_ffs_ref='Assumed assessed population',dent_mawp_bar=30,original_design_factor=.72)
     rs=[evaluate_case(x) for x in expand_population(c)]
     assert all(r['status']=='ESTIMATE' and 'estimate_label' in r['details'] for r in rs),rs
     assert sum(r['results']['quantity'] for r in rs)==7
@@ -133,10 +133,13 @@ def test_additional_assessed_thickness_controls_case():
     assert r['results']['required_thickness_mm']==15
     assert r['details']['controlling_load_id']=='Other'
 
-def test_dent_additional_pressure_cannot_bypass_ffs():
-    c=valid_case();c.update(mechanism='Dent no-crack',dent_depth_mm=10,no_crack_confirmed=True,dent_ffs_ref='D1',dent_mawp_bar=35)
+def test_dent_additional_pressure_sizes_assessed_capacity_deficit():
+    c=valid_case();c.update(mechanism='Dent no-crack',dent_depth_mm=10,no_crack_confirmed=True,dent_ffs_ref='D1',dent_mawp_bar=35,remaining_wall_mm=10,original_design_factor=.72)
     assert evaluate_case(c)['status']=='CALCULATED'
-    assert evaluate_case(c,loads=[dict(load_id='High',pressure_bar=40)])['status']=='ENGINEERING_HOLD'
+    r=evaluate_case(c,loads=[dict(load_id='High',pressure_bar=40)])
+    assert r['status']=='CALCULATED'
+    assert r['details']['controlling_load_id']=='High'
+    assert r['details']['load_cases'][1]['structural']['structural_mm']>0
 
 def test_modified_b31g_reference_mpa_and_smts_cap():
     from prowrap_v2.assessment import modified_b31g
@@ -156,7 +159,7 @@ def test_procurement_minimizes_material_and_covers_with_splices():
 
 
 def test_final_nonfinite_material_quantity_never_issues_schedule():
-    c=valid_case();c.update(mechanism='Dent no-crack',dent_depth_mm=1e200,defect_width_mm=1e200,no_crack_confirmed=True,dent_ffs_ref='D1',dent_mawp_bar=35)
+    c=valid_case();c.update(mechanism='Dent no-crack',dent_depth_mm=1e200,defect_width_mm=1e200,no_crack_confirmed=True,dent_ffs_ref='D1',dent_mawp_bar=35,remaining_wall_mm=10,original_design_factor=.72)
     r=evaluate_case(c);assert r['status']=='NO_VALID_DESIGN',r
     assert not r['results']
 

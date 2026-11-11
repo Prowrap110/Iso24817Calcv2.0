@@ -178,7 +178,9 @@ def test_batch_commercial_totals_exclude_invalid_quantities(batch):
 def test_population_expansion_preserves_quantity(batch):
     book = _inputs(batch)
     _add(book, "Repair Cases", repair_id="DENT", mechanism="Dent no-crack",
-         dent_mode="60/40 population", purpose="Estimate", quantity=7)
+         dent_mode="60/40 population", purpose="Estimate", quantity=7,
+         remaining_wall_mm=9.53, no_crack_confirmed=True, inspection_ref="INS-DENT",
+         dent_ffs_ref="DENT-FFS", dent_mawp_bar=40, original_design_factor=.72)
     output, results = batch.process_workbook(_pack(book))
     assert len(results) == 2
     assert all(result["status"] == "ESTIMATE" for result in results), results

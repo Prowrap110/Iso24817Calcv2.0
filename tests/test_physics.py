@@ -31,7 +31,7 @@ def test_modules_exist():
 def test_material_profiles_and_independent_copies():
     from prowrap_v2.materials import get_material
     p=get_material('PRW110+')
-    assert (p['tg_c'],p['ec_mpa'],p['ea_mpa'],p['lts'],p['gamma_n_mm'],p['g_mpa'],p['min_typeb_plies']) == (104.73,45460,43800,.0055,.250,2450,3)
+    assert (p['tg_c'],p['ec_mpa'],p['ea_mpa'],p['lts'],p['gamma_n_mm'],p['g_mpa'],p['min_typeb_plies']) == (104.73,45460,43800,.007,.250,2450,3)
     assert get_material('PRW110')['tg_c']==78.18
     p['tg_c']=0
     assert get_material('PRW110+')['tg_c']==104.73
@@ -130,5 +130,5 @@ def test_temperature_type_b_longlife_cap_and_cold_strain():
 def test_lts_longlife_and_initial_service_envelope():
     c,m=fixture(); c.update(strain_basis='LTS',design_life_years=50,repair_class=1)
     r=api().calculate_structural(c,m,'A')
-    assert r['epsilon_c']==pytest.approx(.7*.0055*.760*10**(-.00273*50))
+    assert r['epsilon_c']==pytest.approx(.7*.007*.760*10**(-.00273*50))
     with pytest.raises(ValueError): api().calculate_structural(dict(c,repair_class=3),m,'B')

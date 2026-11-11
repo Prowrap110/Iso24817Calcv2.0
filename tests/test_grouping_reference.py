@@ -45,7 +45,9 @@ def test_blank_grouping_reference_preserves_calculated_design(mode, reference):
     ({'zone_length_mm':None}, 'INPUT_ERROR', 'overall repair-zone span'),
     ({'defect_mode':'Measured individual'}, 'INPUT_ERROR', 'linked defect records'),
     ({'mechanism':'Dent no-crack','dent_mode':'60/40 population','purpose':'Estimate',
-      'defect_length_mm':600.,'defect_width_mm':250.,'zone_length_mm':600.,'dent_depth_mm':.06*323.9},
+      'defect_length_mm':600.,'defect_width_mm':250.,'zone_length_mm':600.,'dent_depth_mm':.06*323.9,
+      'no_crack_confirmed':True,'inspection_ref':'I1','dent_ffs_ref':'D1','dent_mawp_bar':30,
+      'original_design_factor':.72,'remaining_wall_mm':10},
      'ENGINEERING_HOLD', 'external corrosion'),
 ])
 def test_blank_reference_does_not_bypass_independent_applicability(changes, status, issue):

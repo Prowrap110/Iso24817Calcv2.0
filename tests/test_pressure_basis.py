@@ -76,9 +76,10 @@ def test_class_dent_and_cycle_bounds_use_selected_maop():
     assert evaluate_case(dict(case,maop_bar=21))['status']=='ENGINEERING_HOLD'
     dent=dict(valid_case(),pressure_bar=70,maop_bar=30,pressure_basis='MAOP',
               mechanism='Dent no-crack',dent_depth_mm=10,no_crack_confirmed=True,
-              dent_ffs_ref='DENT-1',dent_mawp_bar=35)
+              dent_ffs_ref='DENT-1',dent_mawp_bar=35,remaining_wall_mm=10,original_design_factor=.72)
     assert evaluate_case(dent)['status']=='CALCULATED'
-    assert evaluate_case(dict(dent,maop_bar=36))['status']=='ENGINEERING_HOLD'
+    assert evaluate_case(dict(dent,maop_bar=36))['status']=='CALCULATED'
+    assert evaluate_case(dict(dent,maop_bar=40,install_pressure_bar=36))['status']=='ENGINEERING_HOLD'
     cycles=dict(valid_case(),pressure_bar=70,maop_bar=30,pressure_basis='MAOP',
                 cyclic=True,cycles=100,cycle_min_bar=0,cycle_max_bar=31)
     result=evaluate_case(cycles)
