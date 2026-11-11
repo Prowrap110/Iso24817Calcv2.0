@@ -19,7 +19,9 @@ The **fitness-for-service reference is optional** in both apps. An entered refer
 
 ## Substrate-credit qualification
 
-The **substrate-credit qualification reference is optional** in both apps. An entered reference remains in the calculation record. **Confirmed qualified wall-loss limit [%] remains required** whenever remaining-steel capacity is credited. The assessed end-of-life wall loss must be strictly below that limit; equality still fails. The end-of-life minimum wall, Modified B31G applicability and other capacity checks remain unchanged. Template notes identify the optional reference without changing existing workbook headers.
+The **substrate-credit qualification reference is optional** in both apps. An entered reference remains in the calculation record. **Confirmed qualified wall-loss limit [%] defaults to 81% for PRW110 and PRW110+**. Edit the percentage for a manual override. In batch files, repair/engineering inputs override line defaults, which override Batch Setup; blank cells inherit, with 81% used when no limit is entered. Existing explicit percentages, including zero, are preserved and validated. A cleared single-form field must be filled before substrate credit can be calculated; New calculation restores 81%.
+
+The assessed end-of-life wall loss must be strictly below the selected limit; equality still fails. The end-of-life minimum wall, Modified B31G's separate 80% metal-loss scope and all other capacity checks remain unchanged. Template notes identify the default and optional reference without changing existing workbook headers. The 81% value is an owner-selected default using the PRW110+ report's stated limit, also applied to PRW110 by instruction.
 
 ## Independent defects
 

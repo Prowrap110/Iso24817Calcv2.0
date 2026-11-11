@@ -51,7 +51,7 @@ HELP={
  'load_basis':'Pressure-only includes the pressure end load. Select additional loads for axial force, shear, bending or torsion.',
  'cycles':'Total expected cycles over the design life, not cycles per year.',
  'effective_diameter_mm':'Assessor-defined effective opening, covering current and future pressurized/unbonded footprint, filler and stopgap.',
- 'qualified_wall_loss_pct':'Required for substrate credit. Maximum wall-loss percentage from the system qualification. Assessed end-of-life wall loss must be strictly below this limit.',
+ 'qualified_wall_loss_pct':'Defaults to 81% for PRW110 and PRW110+. Edit this value to apply a manual qualification limit. Assessed end-of-life wall loss must be strictly below the selected limit; all other substrate-credit checks still apply.',
  'qualification_ref':'Optional qualification reference for the calculation record. The confirmed qualified wall-loss limit and all substrate-credit checks remain required.',
  'ffs_ref':'Optional reference for the assessment record. Leaving this blank does not bypass applicability or capacity checks.',
  'grouping_ref':'Optional inspection or grouping reference for the calculation record. Dimensions and noninteraction confirmation, overall zone span and applicable measured-defect checks remain required.',
@@ -92,6 +92,7 @@ for section, title in SECTIONS.items():
         case = current_case()
         if section == 7 and case['substrate_route'] != 'Full laminate':
             st.caption('Axial capacity defaults to Fs = A × Ps. Leave the axial MAWP override blank to use the assessed Ps; enter bar to override the axial basis only. Explicit zero means no axial credit.')
+            st.caption('Qualified wall-loss limit defaults to 81% for PRW110 and PRW110+. Edit the percentage below for a manual override.')
         visible = active_fields(case)
         cols = st.columns(2)
         keys = [key for key in visible if FIELD_DEFINITIONS[key]["section"] == section and key not in OPENING_FIELDS and key != 'assessed_axial_capacity_kn']

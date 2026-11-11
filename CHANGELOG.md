@@ -1,5 +1,11 @@
 # Changelog
 
+## Default qualified wall-loss limit — 2026-11-11 (version remains 2.0.0)
+
+- Default the qualified wall-loss limit to 81% for PRW110 and PRW110+ in both calculators, with editable manual overrides.
+- Preserve batch override precedence and existing explicit percentages; blank workbook inputs inherit the shared 81% default.
+- Retain strict wall-loss, range and capacity checks, optional qualification references and workbook compatibility.
+
 ## Optional substrate-credit qualification reference — 2026-11-11 (version remains 2.0.0)
 
 - Make the substrate-credit qualification reference optional in both calculators and retain any entered reference in the calculation record.
