@@ -55,7 +55,7 @@ def qualification_workbook():
     cases = book['Repair Cases']; cols = {c.value:c.column for c in cases[3]}
     data = [dict(repair_id='BLANK-REF', qualified_wall_loss_pct=81),
             dict(repair_id='WITH-REF', qualified_wall_loss_pct=81, qualification_ref='QUAL-01'),
-            dict(repair_id='MISSING-LIMIT'),
+            dict(repair_id='INVALID-LIMIT', qualified_wall_loss_pct=101),
             dict(repair_id='AT-LIMIT', qualified_wall_loss_pct=50)]
     for row,values in enumerate(data,5):
         for key,value in values.items(): cases.cell(row,cols[key]).value=value
@@ -93,6 +93,99 @@ def test_single_optional_reference_and_required_limit_submission():
 def test_batch_app_accepts_blank_reference_and_keeps_limit_holds():
     app = AppTest.from_file(str(Path(__file__).parents[1]/'batch_app.py'), default_timeout=20).run()
     app.get('file_uploader')[0].upload('qualification-reference.xlsx', qualification_workbook()).run()
+    app.button[0].click().run()
+    assert not app.exception
+    assert next(m.value for m in app.metric if m.label == 'Calculated') == '2'
+    assert next(m.value for m in app.metric if m.label == 'Require review') == '2'
+
+
+@pytest.mark.parametrize('product', ['PRW110', 'PRW110+'])
+def test_omitted_qualification_limit_defaults_to_81_for_both_products(product):
+    case = credit_case(product=product)
+    case.pop('qualified_wall_loss_pct')
+    result = evaluate_case(case)
+    explicit = evaluate_case(dict(case, qualified_wall_loss_pct=81))
+    assert result['status'] == 'CALCULATED', result['issues']
+    assert result['inputs']['qualified_wall_loss_pct'] == 81
+    assert result['results'] == explicit['results']
+
+
+def default_limit_workbook(batch_limit=None):
+    book = load_workbook(BytesIO(qualification_workbook()))
+    setup = book['Batch Setup']
+    for row in range(10,setup.max_row+1):
+        if setup.cell(row,3).value == 'qualified_wall_loss_pct':
+            setup.cell(row,2).value = batch_limit
+    cases = book['Repair Cases']; cols = {c.value:c.column for c in cases[3]}
+    for row,product,limit in [(5,'PRW110',None),(6,'PRW110+',None),(7,'PRW110+',0),(8,'PRW110+',50)]:
+        cases.cell(row,cols['qualified_wall_loss_pct']).value = limit
+        cases.cell(row,cols['product']).value = product
+    return book
+
+
+def pack(book):
+    content = BytesIO(); book.save(content)
+    return content.getvalue()
+
+
+def test_batch_blank_limits_default_to_81_and_zero_is_not_replaced():
+    batch = prepare_workbook(pack(default_limit_workbook()))
+    assert [r.case['qualified_wall_loss_pct'] for r in batch.repairs] == [81,81,0,50]
+    assert batch.repairs[0].origins['qualified_wall_loss_pct'] == 'Calculator default'
+    output,results = calculate_batch(batch)
+    assert [r['status'] for r in results] == ['CALCULATED']*2+['ENGINEERING_HOLD']*2
+    assert all(not r['results'] for r in results[2:])
+    book = load_workbook(BytesIO(output))
+    values = [row[3] for row in book['Effective Inputs'].iter_rows(min_row=5,values_only=True)
+              if row[2] == 'Confirmed qualified wall-loss limit [%]']
+    assert values == [81,81,0,50]
+
+
+def test_batch_limit_override_precedence_including_engineering_details():
+    book = default_limit_workbook(batch_limit=78)
+    lines = book['Line Defaults']; cols = {c.value:c.column for c in lines[3]}
+    for key,value in dict(line_id='L1',qualified_wall_loss_pct=75).items():
+        lines.cell(5,cols[key]).value = value
+    cases = book['Repair Cases']; cols = {c.value:c.column for c in cases[3]}
+    for row in (6,7,8): cases.cell(row,cols['line_id']).value = 'L1'
+    cases.cell(7,cols['qualified_wall_loss_pct']).value = 72
+    cases.cell(8,cols['qualified_wall_loss_pct']).value = None
+    details = book['Load and Engineering Details']; cols = {c.value:c.column for c in details[3]}
+    for key,value in dict(repair_id='AT-LIMIT',qualified_wall_loss_pct=70).items():
+        details.cell(5,cols[key]).value = value
+    batch = prepare_workbook(pack(book))
+    assert [r.case['qualified_wall_loss_pct'] for r in batch.repairs] == [78,75,72,70]
+    _,results = calculate_batch(batch)
+    assert all(r['status'] == 'CALCULATED' for r in results), results
+
+
+@pytest.mark.parametrize('product', ['PRW110', 'PRW110+'])
+def test_single_default_limit_and_manual_override_survive_product_change(product):
+    app = AppTest.from_file(str(Path(__file__).parents[1]/'app.py'), default_timeout=20)
+    for key,value in credit_case(product=product).items():
+        if key != 'qualified_wall_loss_pct': app.session_state['case_'+key] = value
+    app.run()
+    assert app.number_input(key='case_qualified_wall_loss_pct').value == 81
+    app.button(key='calculate').click().run()
+    assert app.session_state['calculation_results'][0]['status'] == 'CALCULATED'
+    app.number_input(key='case_qualified_wall_loss_pct').set_value(50).run()
+    app.selectbox(key='case_product').select('PRW110+' if product == 'PRW110' else 'PRW110').run()
+    assert app.number_input(key='case_qualified_wall_loss_pct').value == 50
+    app.button(key='calculate').click().run()
+    result = app.session_state['calculation_results'][0]
+    assert result['status'] == 'ENGINEERING_HOLD'
+    assert not result['results']
+    app.number_input(key='case_qualified_wall_loss_pct').set_value(82).run()
+    app.button(key='calculate').click().run()
+    assert app.session_state['calculation_results'][0]['status'] == 'CALCULATED'
+    app.button(key='clear').click().run()
+    assert app.session_state['case_qualified_wall_loss_pct'] == 81
+    assert not app.exception
+
+
+def test_batch_app_uses_default_limit_and_keeps_manual_limit_holds():
+    app = AppTest.from_file(str(Path(__file__).parents[1]/'batch_app.py'), default_timeout=20).run()
+    app.get('file_uploader')[0].upload('default-limit.xlsx', pack(default_limit_workbook())).run()
     app.button[0].click().run()
     assert not app.exception
     assert next(m.value for m in app.metric if m.label == 'Calculated') == '2'
