@@ -92,6 +92,7 @@ def main():
             file_name="PROWRAP_CalcBatch_v2_Template.xlsx", on_click="ignore",
         )
         st.caption("Enter shared values on Batch Setup or Line Defaults. Add one row per repair zone.")
+        st.caption('Fitness-for-service reference is optional. Include an available reference for the calculation record.')
         st.caption('B31G: automatic safety factor = max(1 ÷ original pipeline design factor, 1.25). Enter a B31G assessment safety factor only for a manual override. Blank repair cells inherit any line or batch override; clear those too to use automatic calculation.')
     with upload_col:
         st.subheader("2. Upload your workbook")

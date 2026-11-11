@@ -1,5 +1,11 @@
 # Changelog
 
+## Optional assessment reference — 2026-11-11 (version remains 2.0.0)
+
+- Made the fitness-for-service reference optional in both calculators, including Modified B31G and external assessed-capacity inputs.
+- Kept all implemented B31G applicability checks and required numerical capacities; missing material and design-code messages now name the missing input.
+- Clarified the single-app label and batch template guidance without changing existing workbook headers.
+
 ## v2.0 revision — 2026-11-11 (version remains 2.0.0)
 
 - Calculate the B31G safety factor automatically from the original pipeline design factor, retaining the 1.25 minimum.

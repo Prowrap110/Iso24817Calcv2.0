@@ -52,6 +52,7 @@ HELP={
  'cycles':'Total expected cycles over the design life, not cycles per year.',
  'effective_diameter_mm':'Assessor-defined effective opening, covering current and future pressurized/unbonded footprint, filler and stopgap.',
  'qualified_wall_loss_pct':'Maximum wall-loss envelope from the referenced system qualification used for substrate credit.',
+ 'ffs_ref':'Optional reference for the assessment record. Leaving this blank does not bypass applicability or capacity checks.',
  'original_design_factor':'Enter the original pipeline design factor as a decimal, for example 0.72. Automatic B31G safety factor = max(1 / design factor, 1.25).',
  'b31g_safety_factor':'Optional manual override. Leave blank to calculate from the original pipeline design factor. The minimum accepted safety factor is 1.25.',
  'cure_basis':'Report schedule uses the ISO 9.3 temperature-factor fallback. A confirmed qualified schedule requires its procedure reference.',
@@ -60,7 +61,7 @@ HELP={
 
 def widget(key):
     f=FIELD_DEFINITIONS[key];kw=dict(key='case_'+key,on_change=clear_result,help=HELP.get(key))
-    if f['kind']=='text': st.text_input(f['label'],**kw)
+    if f['kind']=='text': st.text_input('Fitness-for-service reference (optional)' if key=='ffs_ref' else f['label'],**kw)
     elif f['kind']=='select': st.selectbox(f['label'],f['choices'],**kw)
     elif f['kind']=='bool': st.checkbox(f['label'],**kw)
     else:

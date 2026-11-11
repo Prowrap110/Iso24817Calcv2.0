@@ -15,6 +15,8 @@ The batch template contains Batch Setup, Line Defaults, Repair Cases, Defect Det
 
 Automatic selection uses **max(1 ÷ original pipeline design factor, 1.25)**. Enter the design factor as a decimal (for example, 0.72). Leave the B31G assessment safety factor blank to use automatic selection, or enter a manual override of at least 1.25. In batch workbooks, blank repair cells inherit any line/batch override; clear those too to use automatic selection. The preview and exported records show the factor actually used. Existing v2.0 workbooks remain compatible.
 
+The **fitness-for-service reference is optional** in both apps. An entered reference remains in the calculation record. Modified B31G still requires pipe material and original design code, and retains its geometry, material-strength, temperature, wall-loss and safety-factor checks. External assessments still require the assessed impaired-pipe MAWP and applicable axial capacity.
+
 ## Calculation scope
 
 - Type A structural sizing and Type B structural plus sealing sizing.
