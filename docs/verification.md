@@ -55,3 +55,10 @@ Both application entry points use `prowrap_v2.engine.evaluate_case`. Dependency 
 ## Design pressure / MAOP selection — 11 November 2026
 
 `python3 -m pytest -q`: **228 passed**. The 36 new tests cover zero minimum-pressure defaults and manual bond-check effects; selected-MAOP equivalence for full laminate, both substrate-credit routes and Type B; raw-pressure preservation; required/invalid selected inputs; installation/minimum/class/dent/cycle checks; explicit and inherited load pressures, including a load named Base; PDF/JSON pressure records; single-app selection and cleared-input rejection; batch inheritance/export/preview/calculation and prior workbook contracts. Invalid cases continue to issue no installation quantities. Version remains 2.0.0.
+
+
+## Assessed dent capacity and 0.7% LTS — 11 November 2026
+
+`python3 -m pytest -q`: **260 passed**. New regressions cover assessed dent capacity equal to demand (three plies / 2.49 mm), positive pressure deficit, installation above assessed capacity, nonpositive stress margin, current/future wall loss, plain/non-cyclic scope, population assessment requirements, manual axial overrides, hotter named loads, UI visibility and batch effective-input provenance. The former target-pressure gate is replaced by reinforcement sizing with an installation-capacity check. Independent review identified a held-case provenance issue, which was corrected and regression-tested. No remaining review findings.
+
+The owner-selected base LTL/LTS is now 0.007 (0.7%) for both products. Numerical tests verify life and temperature derating before use, preserve the Default strain equations, and record the selected base strain in the calculation trace. Both apps share the same material profile and evaluator. Version remains 2.0.0.
