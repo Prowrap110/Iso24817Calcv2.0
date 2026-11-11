@@ -94,6 +94,7 @@ def main():
         st.caption("Enter shared values on Batch Setup or Line Defaults. Add one row per repair zone.")
         st.caption('Fitness-for-service reference is optional. Include an available reference for the calculation record.')
         st.caption('B31G: automatic safety factor = max(1 ÷ original pipeline design factor, 1.25). Enter a B31G assessment safety factor only for a manual override. Blank repair cells inherit any line or batch override; clear those too to use automatic calculation.')
+        st.caption('Axial capacity defaults to A × assessed Ps (Modified B31G by default). Enter Axial-capacity MAWP override [bar] for the axial basis only. Clear any legacy kN override before using it; explicit zero means no axial credit.')
     with upload_col:
         st.subheader("2. Upload your workbook")
         uploaded = st.file_uploader(
@@ -146,6 +147,17 @@ def main():
     b.metric("Estimates", estimated)
     c.metric("Require review", other)
     st.caption("Results are for engineering review. The export keeps estimate quantities separate.")
+    capacity_rows = [
+        {"Repair ID": record['repair_id'],
+         "Remaining-pipe Ps [bar]": record['details']['substrate_pressure_mpa']*10,
+         "Axial capacity used [kN]": record['details']['axial_capacity']['force_kn'],
+         "Axial pressure basis [bar]": record['details']['axial_capacity']['pressure_bar'],
+         "Axial capacity basis": record['details']['axial_capacity']['source']}
+        for record in results if record['status'] in ('CALCULATED','ESTIMATE')
+        and record['inputs']['substrate_route'] != 'Full laminate'
+    ]
+    if capacity_rows:
+        st.dataframe(capacity_rows, hide_index=True, width='stretch')
     st.download_button(
         "Download results workbook", data=workbook, mime=MIME_XLSX, type="primary",
         file_name="PROWRAP_CalcBatch_v2_Results.xlsx", on_click="ignore",

@@ -53,6 +53,8 @@ HELP={
  'effective_diameter_mm':'Assessor-defined effective opening, covering current and future pressurized/unbonded footprint, filler and stopgap.',
  'qualified_wall_loss_pct':'Maximum wall-loss envelope from the referenced system qualification used for substrate credit.',
  'ffs_ref':'Optional reference for the assessment record. Leaving this blank does not bypass applicability or capacity checks.',
+ 'axial_mawp_bar':'Optional. Blank calculates axial capacity from the assessed remaining-pipe Ps (Modified B31G by default). Enter the damaged pipe MAWP in bar to override only the pressure used for axial force Fs = π × OD² × MAWP / 40000 [kN]. Hoop Ps remains unchanged; combined-stress thickness can change.',
+ 'assessed_axial_capacity_kn':'Existing force override retained. Clear it to use automatic Ps or the manual axial MAWP in bar. Do not enter both overrides.',
  'original_design_factor':'Enter the original pipeline design factor as a decimal, for example 0.72. Automatic B31G safety factor = max(1 / design factor, 1.25).',
  'b31g_safety_factor':'Optional manual override. Leave blank to calculate from the original pipeline design factor. The minimum accepted safety factor is 1.25.',
  'cure_basis':'Report schedule uses the ISO 9.3 temperature-factor fallback. A confirmed qualified schedule requires its procedure reference.',
@@ -86,12 +88,17 @@ def editor_records(fields, config, key):
 for section, title in SECTIONS.items():
     with st.expander(f"{section}. {title}", expanded=section in (1, 2, 3, 4)):
         case = current_case()
+        if section == 7 and case['substrate_route'] != 'Full laminate':
+            st.caption('Axial capacity defaults to Fs = A × Ps. Leave the axial MAWP override blank to use the assessed Ps; enter bar to override the axial basis only. Explicit zero means no axial credit.')
         visible = active_fields(case)
         cols = st.columns(2)
-        keys = [key for key in visible if FIELD_DEFINITIONS[key]["section"] == section and key not in OPENING_FIELDS]
+        keys = [key for key in visible if FIELD_DEFINITIONS[key]["section"] == section and key not in OPENING_FIELDS and key != 'assessed_axial_capacity_kn']
         for index, key in enumerate(keys):
             with cols[index % 2]:
                 widget(key)
+        if section == 7 and 'assessed_axial_capacity_kn' in visible:
+            with st.expander('Existing axial-force override (optional)', expanded=case.get('assessed_axial_capacity_kn') is not None):
+                widget('assessed_axial_capacity_kn')
         case = current_case()
         if section == 7 and case['substrate_route'] != 'Full laminate' and case['ffs_method'] == 'Modified B31G':
             st.caption('Automatic safety factor = max(1 ÷ original pipeline design factor, 1.25). Leave the manual override blank to use automatic calculation.')
@@ -182,6 +189,12 @@ if st.session_state.get('calculation_results'):
             b.metric('Laminate epoxy total',f"{vals['laminate_epoxy_kg']:.2f} kg")
             c.metric('Putty total',f"{vals['putty_kg']:.2f} kg")
             st.write(f"Total fabric bands: **{vals['count_500']} × 500 mm** and **{vals['count_300']} × 300 mm**. Total epoxy: **{vals['total_epoxy_kg']:.2f} kg**. Quantity: **{vals.get('quantity',1):g}**.")
+            if result['inputs']['substrate_route'] != 'Full laminate':
+                axial=result['details']['axial_capacity']
+                a,b=st.columns(2)
+                a.metric('Remaining-pipe Ps', f"{result['details']['substrate_pressure_mpa']*10:.3f} bar")
+                b.metric('Axial capacity used', f"{axial['force_kn']:.3f} kN")
+                st.caption(axial['source'] + (f" · Axial pressure basis {axial['pressure_bar']:.3f} bar" if axial['pressure_bar'] is not None else ''))
         else: st.error(status+' · '+ ' '.join(result.get('issues',[])))
         if result.get('checks'):
             with st.expander('Check results',expanded=not valid):st.dataframe(pd.DataFrame(result['checks']),hide_index=True,width='stretch')

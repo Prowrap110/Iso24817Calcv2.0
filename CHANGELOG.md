@@ -1,5 +1,12 @@
 # Changelog
 
+## Axial capacity from pressure — 2026-11-11 (version remains 2.0.0)
+
+- Default new remaining-capacity assessments to Modified B31G and axial credit to `Fs = A × Ps`, using final credited Ps after existing limits.
+- Add an optional axial-only MAWP override in bar. It does not replace hoop Ps; combined-stress thickness can still change.
+- Preserve populated legacy axial-force inputs and previous assessment defaults in older v2.0 workbooks. Reject simultaneous force and pressure overrides.
+- Show and export the actual axial pressure, force and source; retain applicability checks and require a temperature-specific assessment for hotter linked cases using positive manual axial credit.
+
 ## Optional assessment reference — 2026-11-11 (version remains 2.0.0)
 
 - Made the fitness-for-service reference optional in both calculators, including Modified B31G and external assessed-capacity inputs.

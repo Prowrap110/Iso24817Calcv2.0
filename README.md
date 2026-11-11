@@ -17,6 +17,14 @@ Automatic selection uses **max(1 ÷ original pipeline design factor, 1.25)**. En
 
 The **fitness-for-service reference is optional** in both apps. An entered reference remains in the calculation record. Modified B31G still requires pipe material and original design code, and retains its geometry, material-strength, temperature, wall-loss and safety-factor checks. External assessments still require the assessed impaired-pipe MAWP and applicable axial capacity.
 
+## Axial capacity
+
+New calculations default to Modified B31G. With no axial override, `Fs = A × Ps` uses the final credited remaining-pipe pressure (including existing allowable-pressure limits), where `A = π × OD² / 4`. Enter **Axial-capacity MAWP override [bar]** to change only the pressure used for axial capacity: `Fs [kN] = π × OD² [mm²] × MAWP [bar] / 40000`. Hoop Ps stays unchanged, although combined-stress thickness can change. An explicit zero gives zero axial credit. If External assessment is selected, automatic axial capacity follows that assessed Ps instead.
+
+MAWP means the maximum allowable working pressure of the impaired pipe in the assessed condition, before composite-repair credit; it is not simply a pressure inferred from wall thickness alone. Use the applicable defect, material, temperature and assessment basis.
+
+The updated batch template includes the optional axial MAWP field. Blank cells inherit line/batch values; clear inherited pressure and legacy force overrides to use automatic Ps. Older v2.0 workbooks remain accepted, retain their previous assessment default, and preserve explicit kN inputs including zero. Entering both manual pressure and force stops the calculation. The app and PDF/JSON/Excel records show the capacity and its source.
+
 ## Calculation scope
 
 - Type A structural sizing and Type B structural plus sealing sizing.
