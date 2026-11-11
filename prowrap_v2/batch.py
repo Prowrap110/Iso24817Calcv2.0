@@ -268,6 +268,8 @@ def template_workbook():
     setup.column_dimensions["B"].width = 28
     setup.column_dimensions["C"].hidden = True
     setup.column_dimensions["D"].width = 58
+    for cells in setup.iter_rows(min_row=9, min_col=4, max_col=4):
+        cells[0].alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
     _input_table(
         workbook, LINES, "Optional. Use one row per named line. Select the same Line ID on Repair Cases.",
         LINE_FIELDS, 24,
