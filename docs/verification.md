@@ -15,6 +15,10 @@ Verified on 10 November 2026 against the supplied ISO 24817:2026 and PRW110+ sou
 - Streamlit form submission and actual upload/preview/calculate/export workflows; stale results are removed after edits or replacement uploads.
 - Single/batch result parity, including a three-repair case, and PDF/JSON/XLSX quantity checks to prevent double counting.
 
+## B31G revision — 11 November 2026
+
+`python3 -m pytest -q`: **113 passed** after the revision. Added numerical witnesses for factors 0.60, 0.72, 0.80 and 0.90; manual override and clearing; missing/invalid inputs; row/line/batch inheritance; matching single/batch results; PDF and Excel audit values; and interactive single/batch factor displays. Version remains 2.0.0.
+
 ## Independent engineering review
 
 A separate reviewer checked the normative source pages and numerical witnesses. Six findings were corrected and independently rechecked: circumferential sealing selection, effective opening coverage, service-class limits, arbitrary load overrides, 5 mm opening rounding, and dent population gating. No unresolved material issue remained within that review scope. Equation (21)'s factor 3 was confirmed against the original-resolution page and retained.

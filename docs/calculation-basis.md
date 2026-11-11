@@ -47,3 +47,11 @@ Default-strain and performance-strain routes retain the applicable temperature, 
 | Workbook parsing, inheritance, row isolation and results | `batch.py` |
 
 Multiple load cases share the same geometry and material basis. All governing load cases participate in final thickness, overlap and bond checks. The effective Type B opening sets a minimum covered axial span. The installed thickness is checked after whole-ply rounding.
+
+## B31G safety-factor selection — v2.0 revision, 11 November 2026
+
+When the manual B31G assessment safety-factor input is blank after workbook inheritance, the calculator uses `max(1 / original_design_factor, 1.25)`. The original pipeline design factor must be a finite decimal greater than zero and no greater than one. The reciprocal uses full precision; 0.72 therefore gives 1.3888888889, not a rounded 1.39. The existing minimum of 1.25 is retained. This is the owner's selected automatic basis, not a universal requirement of ISO 24817 or ASME B31G.
+
+An explicitly entered safety factor is a manual override and must be finite and at least 1.25. It does not require a design factor for safety-factor selection, although the selected substrate route still needs its other allowable-stress inputs. An entered design factor is validated even when a manual override is used. Missing or invalid applicable inputs stop the affected case.
+
+Both apps show the selected factor and its automatic/manual basis. PDF/JSON calculation details and batch Excel effective inputs record the value actually used. Existing v2.0 workbook columns remain compatible: populated safety-factor cells retain their manual values. Blank repair cells inherit any line or batch override, so clear inherited overrides as well to return to automatic calculation. The application version remains v2.0 / 2.0.0.
