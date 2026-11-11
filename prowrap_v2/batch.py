@@ -287,6 +287,16 @@ def template_workbook():
 
 
 def _setup_note(key):
+    if key == 'strain_basis':
+        return 'LTS uses the owner-selected long-term strain 0.007 (0.7%) for both products before design-life, temperature, cyclic and thermal-strain factors. Default retains the standard strain route.'
+    if key == 'substrate_route':
+        return 'Corrosion design-route selection. Dent no-crack automatically uses Substrate stress limit with assessed dent MAWP, including existing workbooks that enter Full laminate.'
+    if key == 'dent_mawp_bar':
+        return 'Assessed dent MAWP supplies remaining-pipe Ps for the dent substrate stress-limit calculation. Required for measured dents and population estimates; no Modified B31G capacity is used for dents.'
+    if key == 'dent_ffs_ref':
+        return 'Dent assessment reference establishing MAWP and applicability. Required for measured dents and population estimates.'
+    if key == 'allowable_stress_mpa':
+        return 'For dents, optional manual allowable-stress override; blank uses SMYS × original design factor. Installation stress remains part of the stress-limit calculation. For corrosion, used by the selected route.'
     if key == 'pressure_basis':
         return 'Choose Design pressure (default) or MAOP for the base repair calculation. Enter the selected pressure. Named load cases retain their explicit pressure overrides; blank load pressures inherit the selected base pressure.'
     if key == 'maop_bar':
@@ -308,7 +318,7 @@ def _setup_note(key):
     if key == 'b31g_safety_factor':
         return 'Optional manual override (minimum 1.25). Blank inherits any line/batch override; if none, automatic = max(1 / original design factor, 1.25).'
     if key == 'original_design_factor':
-        return 'Decimal factor, e.g. 0.72. Required for automatic B31G safety factor; automatic = max(1 / factor, 1.25).'
+        return 'Decimal factor, e.g. 0.72. For dents, allowable substrate stress = SMYS × factor unless manually overridden. For Modified B31G, automatic safety factor = max(1 / factor, 1.25).'
     default = FIELD_DEFINITIONS[key]["default"]
     if key in ("growth_basis", "load_basis", "landing_mode"):
         return "Choose the confirmed basis for the repairs in scope."
@@ -657,6 +667,26 @@ def _output_table(workbook, title, instruction, headers, rows, widths):
 def _effective_inputs(calculations):
     for repair, case, result in calculations:
         result_id = result["repair_id"]
+        effective_case = dict(case)
+        dent = result.get('details', {}).get('dent_capacity')
+        dent_origins = {}
+        ignored_dent_fields = ()
+        if dent:
+            dent_origins = {
+                'substrate_route': 'ISO 24817:2026 · ' + dent['clauses'],
+                'ffs_method': dent['source'],
+                'assessed_mawp_bar': dent['source'],
+                'allowable_stress_mpa': dent['allowable_stress_source'],
+            }
+            for key in dent_origins:
+                value = result['inputs'][key]
+                if value != case.get(key) and not _is_blank(case.get(key)):
+                    yield result_id, 'Repair', 'Entered ' + _label(key), case[key], repair.origins.get(key)
+                effective_case[key] = value
+            ignored_dent_fields = ('sharing_basis', 'ffs_ref', 'b31g_safety_factor')
+            for key in ignored_dent_fields:
+                if not _is_blank(case.get(key)):
+                    yield result_id, 'Repair', 'Entered ' + _label(key), case[key], 'Not used for dent assessment; ' + str(repair.origins.get(key) or '')
         pressure = result.get('details', {}).get('pressure_basis')
         if pressure:
             yield result_id, 'Repair', 'Calculation pressure [bar]', pressure['calculation_pressure_bar'], pressure['basis']
@@ -664,16 +694,16 @@ def _effective_inputs(calculations):
         if selected:
             yield result_id, 'Repair', 'B31G safety factor used', selected['safety_factor'], selected['source']
         axial = result.get('details', {}).get('axial_capacity')
-        if axial and case['substrate_route'] != 'Full laminate':
+        if axial and effective_case['substrate_route'] != 'Full laminate':
             yield result_id, 'Repair', 'Axial capacity used [kN]', axial['force_kn'], axial['source']
             if axial['pressure_bar'] is not None:
                 yield result_id, 'Repair', 'Axial pressure basis [bar]', axial['pressure_bar'], axial['source']
-            yield result_id, 'Repair', 'Remaining-pipe Ps [bar]', result['details']['substrate_pressure_mpa']*10, case['ffs_method']
-        for key, value in case.items():
-            if key not in FIELD_DEFINITIONS or _is_blank(value):
+            yield result_id, 'Repair', 'Remaining-pipe Ps [bar]', result['details']['substrate_pressure_mpa']*10, dent['source'] if dent else case['ffs_method']
+        for key, value in effective_case.items():
+            if key not in FIELD_DEFINITIONS or key in ignored_dent_fields or _is_blank(value):
                 continue
-            origin = repair.origins.get(key)
-            if case.get("population_estimate") and value != repair.case.get(key):
+            origin = dent_origins.get(key, repair.origins.get(key))
+            if key not in dent_origins and case.get("population_estimate") and value != repair.case.get(key):
                 origin = "60/40 dent population"
             yield result_id, "Repair", _label(key), value, origin
         for records, record_key, sheet in (
@@ -763,7 +793,7 @@ def calculate_batch(batch: PreparedBatch) -> tuple[bytes, list[dict]]:
         warnings, (24, 32, 14, 26, 100),
     )
     _output_table(
-        workbook, "Effective Inputs", "Resolved workbook values and their origin. Blank inputs are omitted.",
+        workbook, "Effective Inputs", "Effective calculation values and origins. Entered values changed by the dent method are recorded separately. Blank inputs are omitted.",
         ("Repair ID", "Record", "Input field", "Value", "Origin"),
         _effective_inputs(calculations), (24, 22, 54, 36, 39),
     )

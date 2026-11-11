@@ -78,7 +78,10 @@ def active_fields(case, defects=()):
     if not case.get("external_pressure") and not case.get("reversing_loads"):
         hide("external_assessment_ref")
 
-    if case.get("substrate_route") == "Full laminate":
+    if case.get("mechanism") == "Dent no-crack":
+        hide("substrate_route", "sharing_basis", "ffs_method", "ffs_ref",
+             "assessed_mawp_bar", "b31g_safety_factor", "smts_mpa")
+    elif case.get("substrate_route") == "Full laminate":
         hide(
             "sharing_basis", "ffs_method", "ffs_ref", "assessed_mawp_bar", "axial_mawp_bar", "assessed_axial_capacity_kn",
             "qualified_wall_loss_pct", "qualification_ref", "b31g_safety_factor", "original_design_factor",
@@ -102,4 +105,6 @@ def case_for_calculation(case, defects=()):
     active = active_fields(case, defects)
     submitted = default_case()
     submitted.update({key: case[key] for key in active if key in case})
+    if submitted.get("mechanism") == "Dent no-crack":
+        submitted.update(substrate_route="Substrate stress limit", ffs_method="External assessment")
     return submitted

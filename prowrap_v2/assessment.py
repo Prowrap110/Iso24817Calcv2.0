@@ -1,6 +1,30 @@
 """Narrow Modified B31G assessment and explicit external capacity acceptance."""
 import math
 
+def dent_capacity_details(case):
+    """Explicit assessed capacity and stress basis for the narrow plain-dent route."""
+    pressure = case.get('dent_mawp_bar')
+    if (isinstance(pressure, bool) or not isinstance(pressure, (int, float))
+            or not math.isfinite(pressure) or pressure <= 0):
+        raise ValueError('Dent sizing requires a positive assessed dent MAWP; nominal-wall capacity is not substituted.')
+    allowable = case.get('allowable_stress_mpa')
+    factor = case.get('original_design_factor')
+    if allowable is None:
+        if (isinstance(factor, bool) or not isinstance(factor, (int, float))
+                or not math.isfinite(factor) or not 0 < factor <= 1):
+            raise ValueError('Dent stress-limit sizing requires an allowable-stress override or an original design factor greater than zero and no greater than one.')
+        allowable = case['smys_mpa'] * factor
+        source = 'SMYS × original design factor'
+    else:
+        source = 'Manual allowable stress'
+    if (isinstance(allowable, bool) or not isinstance(allowable, (int, float))
+            or not math.isfinite(allowable) or allowable <= 0):
+        raise ValueError('Allowable substrate stress must be finite and positive.')
+    return dict(pressure_bar=pressure, source='Assessed dent MAWP',
+                allowable_stress_mpa=allowable, allowable_stress_source=source,
+                original_design_factor=factor, route='Substrate stress limit',
+                clauses='9.10 / 9.7.2 (13)–(14)')
+
 def b31g_factor_details(case):
     """Owner-selected automatic basis; retain explicit legacy values as overrides."""
     factor = case.get('original_design_factor')
@@ -48,7 +72,8 @@ def axial_capacity_details(case, ps_mpa):
         return dict(force_kn=force, pressure_bar=None, source='Assessed axial force (legacy input)')
     if pressure is None:
         pressure=ps_mpa*10
-        source='Automatic from '+case['ffs_method']+' Ps'
+        source=('Automatic from assessed dent MAWP Ps' if case['mechanism']=='Dent no-crack'
+                else 'Automatic from '+case['ffs_method']+' Ps')
     else:
         source='Manual axial MAWP'
     if not math.isfinite(pressure) or pressure<0:raise ValueError('Axial MAWP must be finite and nonnegative.')

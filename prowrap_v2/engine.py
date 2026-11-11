@@ -5,7 +5,7 @@ from .schema import default_case, FIELD_DEFINITIONS, LOAD_FIELDS
 from .materials import get_material
 from .physics import calculate_structural, bond_stress, component_factor, tee_pressure_limit
 from .sealing import solve_seal
-from .assessment import substrate_capacity, b31g_factor_details, axial_capacity_details
+from .assessment import substrate_capacity, b31g_factor_details, axial_capacity_details, dent_capacity_details
 from .procurement import quantities
 from .pressure import pressure_basis_details
 
@@ -132,15 +132,24 @@ def evaluate_case(case,defects=None,loads=None):
             c['population_estimate']=True
         if c['mechanism']=='Dent no-crack':
             _required(c,'dent_depth_mm')
-            if not c.get('population_estimate'):
-                if not c['no_crack_confirmed'] or not c['inspection_ref'] or not c['dent_ffs_ref'] or c['dent_mawp_bar'] is None:raise Hold('Dent assessment requires no-crack inspection and a referenced dent FFS MAWP.')
-                if c['pressure_bar']>c['dent_mawp_bar']:raise Hold('Selected calculation pressure exceeds the assessed dent MAWP; no nominal-wall pressure credit is substituted.')
-                if c['dent_complex']:raise Hold('Dent with weld, gouge or restraint requires a dedicated damage assessment.')
-                if c['cyclic']:raise Hold('Cyclic dent life extension requires a dedicated Annex H fatigue assessment outside this evaluator.')
-            if c['substrate_route']!='Full laminate':raise Hold('Dent calculations use the full-laminate route; corrosion substrate-credit rules do not establish dent acceptance.')
+            if not c['no_crack_confirmed'] or not c['inspection_ref'] or not c['dent_ffs_ref'] or c['dent_mawp_bar'] is None:raise Hold('Dent assessment requires no-crack inspection and a referenced dent FFS MAWP, including explicit assumptions for population estimates.')
+            if c['dent_complex'] or c['component']!='Straight':raise Hold('Dent with a fitting, weld, gouge or restraint requires a dedicated damage assessment.')
+            if c['cyclic']:raise Hold('Cyclic dent life extension requires a dedicated Annex H fatigue assessment outside this evaluator.')
+            if c['through_wall'] or c['prevent_containment'] or c['remaining_wall_mm']!=c['wall_mm']:
+                raise Hold('The assessed plain-dent route requires no wall loss or through-wall/future-containment repair; combined damage needs a separate assessment.')
+            try:r['details']['dent_capacity']=dent_capacity_details(c)
+            except ValueError as ex:raise Hold(str(ex)) from ex
+            # §9.10 directs dent sizing to §9.7. This evaluator selects the
+            # stress-limit method, using actual assessed dent capacity, not B31G.
+            c.update(substrate_route='Substrate stress limit', ffs_method='External assessment',
+                     assessed_mawp_bar=c['dent_mawp_bar'],
+                     allowable_stress_mpa=r['details']['dent_capacity']['allowable_stress_mpa'])
+            if c['install_pressure_bar']>c['dent_mawp_bar']:raise Hold('Installation pressure exceeds the assessed dent MAWP.')
         gs=_groups(c,defects)
         for g in gs:g['eol_wall_mm']=_future(c,g['remaining_wall_mm'])
         eol=min(g['eol_wall_mm'] for g in gs);c['eol_wall_mm']=eol
+        if c['mechanism']=='Dent no-crack' and eol!=c['wall_mm']:
+            raise Hold('The assessed plain-dent route requires no future wall loss; combined damage needs a separate assessment.')
         c['remaining_wall_mm']=min(c['remaining_wall_mm'],min(g['remaining_wall_mm'] for g in gs))
         repair_type='B' if c['through_wall'] or c['mechanism']=='Leak' or c['prevent_containment'] or eol<1 else 'A'
         r['details'].update(repair_type=repair_type,eol_wall_mm=eol,defects=gs,independence_threshold_mm=3*c['wall_mm'])
@@ -164,6 +173,9 @@ def evaluate_case(case,defects=None,loads=None):
         if c['substrate_route']!='Full laminate' and c['ffs_method']=='Modified B31G':
             r['details']['b31g']=b31g_factor_details(c)
         material=get_material(c['product']);r['details']['substrate_pressure_mpa']=ps
+        if c['strain_basis']=='LTS':
+            r['details']['long_term_strain_input']=dict(value=material['lts'], percent=material['lts']*100,
+                                                       basis='Owner-selected long-term strain before design derating')
         r['details']['axial_capacity']=axial_capacity_details(c,ps)
         effective=[('Base',deepcopy(c))];ids=set()
         for i,load in enumerate(loads or []):
@@ -176,8 +188,7 @@ def evaluate_case(case,defects=None,loads=None):
             lc.update({k:v for k,v in load.items() if k not in ('repair_id','load_id') and v is not None and v!=''})
             if any(load.get(k) not in (None,'',0) for k in ('axial_kn','shear_kn','bending_knm','torsion_knm')):lc['load_basis']='Additional loads'
             _validate(lc)
-            if c['mechanism']=='Dent no-crack' and not c.get('population_estimate'):
-                if lc['pressure_bar']>c['dent_mawp_bar']:raise Hold('Additional load-case pressure exceeds the assessed dent MAWP.')
+            if c['mechanism']=='Dent no-crack':
                 if lc['cyclic']:raise Hold('A cyclic dent load case requires a dedicated Annex H fatigue assessment.')
             if c['substrate_route']!='Full laminate' and c['ffs_method']=='External assessment' and lc['temperature_c']>c['temperature_c']:
                 raise Hold('The additional hotter load case needs a temperature-specific substrate capacity assessment.')
