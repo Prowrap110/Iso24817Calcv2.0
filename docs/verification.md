@@ -43,3 +43,7 @@ Both application entry points use `prowrap_v2.engine.evaluate_case`. Dependency 
 ## Optional grouping-reference revision — 11 November 2026
 
 `python3 -m pytest -q`: **167 passed**. Blank/null grouping references preserve calculated dimensions, materials and checks in both independent-defect modes. Regression checks retain mandatory confirmation, external-corrosion applicability, overall zone span, measured records, spacing and geometry checks. Single-app submission and batch upload calculate valid blank-reference cases while invalid cases retain holds and no installation quantities. Version remains 2.0.0.
+
+## Optional substrate-credit qualification reference — 11 November 2026
+
+`python3 -m pytest -q`: **185 passed**. The 18 new regression cases cover blank/null qualification references for both substrate-credit routes and both capacity methods, identical results/checks/capacity details with a supplied reference, reference retention in batch records, and missing/nonfinite/out-of-range/reached/exceeded qualification limits. Single-app submission and batch upload accept valid blank-reference cases while missing or reached limits retain holds without installation quantities. Independent code review found no blocking issues; numerical checks, workbook contracts and version 2.0.0 remain unchanged.

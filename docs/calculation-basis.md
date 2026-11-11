@@ -41,7 +41,7 @@ Default-strain and performance-strain routes retain the applicable temperature, 
 | Classes, service, defect grouping, end-of-life condition and route gates | `engine.py` |
 | Load equivalents, strain, temperature and cyclic factors; structural equations | `physics.py` |
 | Type B circular and slot sealing, finite-solution checks and governing capacities | `sealing.py` |
-| Referenced substrate capacity and Modified B31G | `assessment.py` |
+| Assessed substrate capacity and Modified B31G | `assessment.py` |
 | Bond, fitting pressure cap, overlap, thickness and final acceptance | `physics.py`, `engine.py` |
 | Fabric bands and material totals | `procurement.py` |
 | Workbook parsing, inheritance, row isolation and results | `batch.py` |
@@ -58,7 +58,7 @@ Both apps show the selected factor and its automatic/manual basis. PDF/JSON calc
 
 ## Optional fitness-for-service reference — v2.0 revision, 11 November 2026
 
-The `ffs_ref` field is optional for Modified B31G and external assessed-capacity routes. It is retained for traceability when provided, but a blank reference is not an engineering hold. The Modified B31G material specification, original design code, straight-pipe corrosion restriction, strength/temperature limits, metal-loss limit and safety-factor validation remain unchanged. The external route still requires assessed MAWP; both substrate-credit routes retain their end-of-life wall, qualification-envelope and axial-capacity checks. Dent-assessment and substrate-credit qualification references are separate inputs and remain unchanged.
+The `ffs_ref` field is optional for Modified B31G and external assessed-capacity routes. It is retained for traceability when provided, but a blank reference is not an engineering hold. The Modified B31G material specification, original design code, straight-pipe corrosion restriction, strength/temperature limits, metal-loss limit and safety-factor validation remain unchanged. The external route still requires assessed MAWP; both substrate-credit routes retain their end-of-life wall, qualification-envelope and axial-capacity checks. Dent-assessment references remain separate required inputs. The substrate-credit qualification reference is also optional under the later revision below.
 
 The single form labels the reference optional. Batch Setup notes and table-header comments explain its optional status while preserving the v2.0 workbook column contract.
 
@@ -77,3 +77,7 @@ The new template adds `axial_mawp_bar` to shared defaults and repair-level engin
 At the owner's request, `grouping_ref` is optional for both Independent 10x10 and Measured individual modes. A blank or null reference no longer causes an engineering hold; a supplied reference remains in the calculation record. This changes a documentation requirement, not the independent-defect applicability criteria or equations.
 
 The shared engine still requires explicit dimension/noninteraction confirmation, external-corrosion applicability and overall repair-zone span. Measured individual mode still requires linked defects, valid dimensions and remaining wall, and either measured clear separation greater than 3t or explicit per-defect noninteraction confirmation when no separation is entered. An entered separation at or below 3t continues to fail even if confirmation is supplied. The 10 × 10 mm pit assumption is unchanged. Existing workbook field keys and labels remain compatible; optional status is explained by template notes and comments. Version remains 2.0.0.
+
+## Optional substrate-credit qualification reference — v2.0 revision, 11 November 2026
+
+At the owner's request, `qualification_ref` is optional in both substrate-credit routes and for both Modified B31G and external capacity assessments. An entered reference remains in the calculation record; blank or null references do not cause a hold. The numerical `qualified_wall_loss_pct` remains mandatory, finite and within 0–100%. Assessed end-of-life wall loss must remain strictly below the entered limit, as required for substrate credit by ISO 24817:2026 §§9.7.2–9.7.3. The end-of-life wall, Modified B31G metal-loss scope and all other capacity checks are unchanged. No qualification limit is assumed or filled automatically. Existing workbook keys and labels are unchanged; notes and comments explain optional status. Version remains 2.0.0.
