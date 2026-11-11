@@ -1,5 +1,11 @@
 # Changelog
 
+## v2.0 revision — 2026-11-11 (version remains 2.0.0)
+
+- Calculate the B31G safety factor automatically from the original pipeline design factor, retaining the 1.25 minimum.
+- Support an optional manual override in both calculators and preserve existing workbook overrides.
+- Display and export the selected factor and its basis; update template guidance and regression checks.
+
 ## 2.0.0 — 2026-11-10
 
 - Rebuilt single and batch applications around one ISO 24817:2026 calculation engine.

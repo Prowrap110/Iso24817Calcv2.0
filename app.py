@@ -8,6 +8,7 @@ from prowrap_v2.ui_logic import (
     OPENING_FIELDS, active_fields, case_for_calculation, uses_measured_defects,
 )
 from prowrap_v2.materials import get_material
+from prowrap_v2.assessment import b31g_factor_details
 from prowrap_v2.engine import evaluate_case, expand_population
 from prowrap_v2.examples import example_case
 from prowrap_v2.reporting import report_pdf, report_json
@@ -51,6 +52,8 @@ HELP={
  'cycles':'Total expected cycles over the design life, not cycles per year.',
  'effective_diameter_mm':'Assessor-defined effective opening, covering current and future pressurized/unbonded footprint, filler and stopgap.',
  'qualified_wall_loss_pct':'Maximum wall-loss envelope from the referenced system qualification used for substrate credit.',
+ 'original_design_factor':'Enter the original pipeline design factor as a decimal, for example 0.72. Automatic B31G safety factor = max(1 / design factor, 1.25).',
+ 'b31g_safety_factor':'Optional manual override. Leave blank to calculate from the original pipeline design factor. The minimum accepted safety factor is 1.25.',
  'cure_basis':'Report schedule uses the ISO 9.3 temperature-factor fallback. A confirmed qualified schedule requires its procedure reference.',
  'thicker_repair_limit_mm':'Leave blank to apply the normal min(D/6, 25 mm) limit. A larger limit requires its specific supporting test reference.',
 }
@@ -66,7 +69,9 @@ def widget(key):
             value=float(value)
             st.session_state['case_'+key]=value
         fmt='%.8f' if key=='steel_cte' else '%.3f'
-        st.number_input(f['label'],value=None,format=fmt,step=0.000001 if key=='steel_cte' else 1.0,**kw)
+        label='Manual B31G safety factor override (optional)' if key=='b31g_safety_factor' else f['label']
+        step=0.000001 if key=='steel_cte' else .01 if key in ('original_design_factor','b31g_safety_factor') else 1.0
+        st.number_input(label,value=None,format=fmt,step=step,**kw)
 
 def editor_records(fields, config, key):
     # Streamlit applies the current editor changes to this stable source on each run.
@@ -87,6 +92,14 @@ for section, title in SECTIONS.items():
             with cols[index % 2]:
                 widget(key)
         case = current_case()
+        if section == 7 and case['substrate_route'] != 'Full laminate' and case['ffs_method'] == 'Modified B31G':
+            st.caption('Automatic safety factor = max(1 ÷ original pipeline design factor, 1.25). Leave the manual override blank to use automatic calculation.')
+            try:
+                selected = b31g_factor_details(case)
+                st.metric('B31G safety factor used', f"{selected['safety_factor']:.4f}")
+                st.caption(selected['source'])
+            except ValueError as error:
+                st.info(str(error))
         if section == 2:
             mat = get_material(case["product"])
             st.caption(f"{case['product']} · {mat['ply_mm']:.2f} mm/ply · Hoop modulus {mat['ec_mpa']:,.0f} MPa · Axial modulus {mat['ea_mpa']:,.0f} MPa · Tg reference {mat['tg_c']:.2f}°C")

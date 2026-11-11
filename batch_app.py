@@ -8,6 +8,7 @@ from prowrap_v2.batch import (
     MAX_FILE_MB, STANDARD, WorkbookError, calculate_batch, prepare_workbook, template_workbook,
 )
 from prowrap_v2.schema import FIELD_DEFINITIONS
+from prowrap_v2.assessment import b31g_factor_details
 
 MIME_XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 PREVIEW_FIELDS = (
@@ -22,12 +23,21 @@ def _template():
 
 
 def _preview(batch):
+    def factor_columns(case):
+        if case['substrate_route'] == 'Full laminate' or case['ffs_method'] != 'Modified B31G':
+            return {'B31G safety factor used': None, 'B31G factor basis': 'Not applicable'}
+        try:
+            selected = b31g_factor_details(case)
+            return {'B31G safety factor used': selected['safety_factor'], 'B31G factor basis': selected['source']}
+        except ValueError as error:
+            return {'B31G safety factor used': None, 'B31G factor basis': str(error)}
     overview, inherited = st.tabs(["Repair cases", "Effective inputs"])
     with overview:
         rows = [
             {
                 "Row": repair.source.number, "Repair ID": repair.case["repair_id"],
                 **{FIELD_DEFINITIONS[key]["label"]: repair.case[key] for key in PREVIEW_FIELDS},
+                **factor_columns(repair.case),
                 "Defect records": len(repair.defects), "Load records": len(repair.loads),
                 "Import check": "Correct inputs" if repair.issues else "Ready to assess",
             }
@@ -82,6 +92,7 @@ def main():
             file_name="PROWRAP_CalcBatch_v2_Template.xlsx", on_click="ignore",
         )
         st.caption("Enter shared values on Batch Setup or Line Defaults. Add one row per repair zone.")
+        st.caption('B31G: automatic safety factor = max(1 ÷ original pipeline design factor, 1.25). Enter a B31G assessment safety factor only for a manual override. Blank repair cells inherit any line or batch override; clear those too to use automatic calculation.')
     with upload_col:
         st.subheader("2. Upload your workbook")
         uploaded = st.file_uploader(

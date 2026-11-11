@@ -11,6 +11,10 @@ Single-repair and batch composite-repair calculators for ISO 24817:2026. Both ap
 
 The batch template contains Batch Setup, Line Defaults, Repair Cases, Defect Details, and Load and Engineering Details. Use the template from v2.0; older workbooks have a different input contract. Blank repair cells inherit line or batch values. Explicit zero and False remain valid overrides.
 
+## B31G safety factor
+
+Automatic selection uses **max(1 ÷ original pipeline design factor, 1.25)**. Enter the design factor as a decimal (for example, 0.72). Leave the B31G assessment safety factor blank to use automatic selection, or enter a manual override of at least 1.25. In batch workbooks, blank repair cells inherit any line/batch override; clear those too to use automatic selection. The preview and exported records show the factor actually used. Existing v2.0 workbooks remain compatible.
+
 ## Calculation scope
 
 - Type A structural sizing and Type B structural plus sealing sizing.
