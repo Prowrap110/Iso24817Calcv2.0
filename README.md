@@ -47,6 +47,12 @@ The updated batch template includes the optional axial MAWP field. Blank cells i
 
 ## Calculation scope
 
+Selecting **Dent no-crack** automatically uses the **assessed dent MAWP** as remaining-pipe capacity with the substrate stress-limit method (ISO §9.10 / §9.7.2). Enter allowable stress explicitly or leave its override blank to use **SMYS × original design factor**. Automatic axial capacity uses the same assessed dent pressure; the existing axial-only overrides remain available. Modified B31G is not used for dents.
+
+This route covers plain, non-cyclic straight-pipe dents with no cracks, current wall loss or future wall loss. No-crack confirmation, inspection and dent-assessment references and a positive assessed dent MAWP are required, including explicit assumptions in population estimates. Installation pressure must not exceed assessed dent MAWP, and the available substrate stress margin must be positive. A higher target pressure is sized as a reinforcement demand. Bond, overlap, temperature, thickness and qualification-envelope checks still apply.
+
+When assessed dent MAWP equals the calculation pressure, with pressure-only loading and no axial override, the pressure deficit is zero. The minimum two layers and 2 mm then require **three 0.83 mm plies (2.49 mm)**, unless another entered thickness or check governs. This is static sizing under the assessment inputs, not independent proof of dent stabilization or fatigue life. Existing v2.0 batch rows containing Full laminate or Modified B31G for this mechanism automatically use the corrected route; effective-input exports identify the applied route and capacity source.
+
 - Type A structural sizing and Type B structural plus sealing sizing.
 - Full-laminate, substrate-sharing and substrate-stress-limit routes, with route-specific applicability checks.
 - Pressure, axial force, shear, bending, torsion, temperature and supported pressure-cycle corrections.
@@ -65,7 +71,7 @@ Thickness, ply count and repair length are **per repair**. Fabric band counts, f
 
 ## Material basis
 
-PRW110+ is the default. PRW110 uses the same shared mechanical inputs with its separate Tg value. The controlled material constants and owner-selected design assumptions are documented in [the calculation basis](docs/calculation-basis.md). Licensed standards and source laboratory reports are not distributed in this repository.
+PRW110+ is the default. PRW110 uses the same shared mechanical inputs with its separate Tg value. The selectable LTL/LTS base strain is **0.007 (0.7%)** for both products before the existing design derating; the Default strain route is unchanged. The controlled material constants and owner-selected design assumptions are documented in [the calculation basis](docs/calculation-basis.md). Licensed standards and source laboratory reports are not distributed in this repository.
 
 ## Run locally
 
