@@ -1,10 +1,2 @@
-"""Shared calculation package for PROWRAP single-repair and batch apps."""
+"""PROWRAP ISO 24817:2026 shared calculation package."""
 __version__ = "2.0.0"
-ISO_STANDARD = "ISO 24817:2017"
-
-LEGACY_INPUT_FIELDS = frozenset({
-    "axial_mawp_bar",
-    "assessed_axial_capacity_kn",
-    "thicker_repair_limit_mm",
-    "thicker_repair_ref",
-})

@@ -23,7 +23,7 @@ def dent_capacity_details(case):
     return dict(pressure_bar=pressure, source='Assessed dent MAWP',
                 allowable_stress_mpa=allowable, allowable_stress_source=source,
                 original_design_factor=factor, route='Substrate stress limit',
-                clauses='7.5.10 / 7.5.4.1 (1)–(2)')
+                clauses='9.10 / 9.7.2 (13)–(14)')
 
 def b31g_factor_details(case):
     """Owner-selected automatic basis; retain explicit legacy values as overrides."""
@@ -59,32 +59,39 @@ def modified_b31g(case,length,remaining):
     flow=min(ys+69,ts);stress=flow*(1-.85*loss)/(1-.85*loss/m)
     return 2*stress*t/(D*sf)
 
-def allowable_wall_pressure(case, remaining_wall_mm):
-    """Annex K worked example: conservative pressure at the local allowable stress."""
-    allowable=case.get('allowable_stress_mpa')
-    if allowable is None and case.get('original_design_factor') is not None:
-        allowable=case['smys_mpa']*case['original_design_factor']
-    if allowable is None or not math.isfinite(allowable) or allowable<=0:
-        raise ValueError('Enter the applicable allowable stress or original pipeline design factor')
-    return 2*allowable*remaining_wall_mm/(case['od_mm']-remaining_wall_mm)
+def axial_capacity_details(case, ps_mpa):
+    """ISO 4.1 / Eq. (9): Fs=A*ps, or an explicitly assessed axial capacity."""
+    if case['substrate_route']=='Full laminate':
+        return dict(force_kn=0., pressure_bar=None, source='No substrate credit')
+    pressure=case.get('axial_mawp_bar')
+    force=case.get('assessed_axial_capacity_kn')
+    if pressure is not None and force is not None:
+        raise ValueError('Enter either axial MAWP or the legacy axial force, not both; clear the other override.')
+    if force is not None:
+        if not math.isfinite(force) or force<0:raise ValueError('Assessed axial capacity must be finite and nonnegative.')
+        return dict(force_kn=force, pressure_bar=None, source='Assessed axial force (legacy input)')
+    if pressure is None:
+        pressure=ps_mpa*10
+        source=('Automatic from assessed dent MAWP Ps' if case['mechanism']=='Dent no-crack'
+                else 'Automatic from '+case['ffs_method']+' Ps')
+    else:
+        source='Manual axial MAWP'
+    if not math.isfinite(pressure) or pressure<0:raise ValueError('Axial MAWP must be finite and nonnegative.')
+    area=math.pi*case['od_mm']**2/4
+    return dict(force_kn=area*pressure/10000, pressure_bar=pressure, source=source, area_mm2=area)
 
 
-def b31g_pressure_details(case, groups, eol):
-    pressure=min(modified_b31g(case,g['length_mm'],g['eol_wall_mm']) for g in groups)
-    wall_pressure=allowable_wall_pressure(case,eol)
-    direct_credit = (
-        case['purpose'] == 'Estimate'
-        and case['mechanism'] == 'Corrosion'
-        and case['defect_location'] == 'External'
-        and case['defect_mode'] == 'Independent 10x10'
-        and case['independence_confirmed']
-        and case['substrate_route'] == 'Substrate sharing'
+def uses_direct_b31g_credit(case):
+    """Identify the isolated-pit load-sharing estimate that credits assessed pressure."""
+    return (
+        case.get('purpose') == 'Estimate'
+        and case.get('mechanism') == 'Corrosion'
+        and case.get('defect_location') == 'External'
+        and case.get('defect_mode') == 'Independent 10x10'
+        and case.get('independence_confirmed') is True
+        and case.get('substrate_route') == 'Substrate sharing'
+        and case.get('ffs_method') == 'Modified B31G'
     )
-    credited = pressure if direct_credit else min(pressure, wall_pressure)
-    basis = ('Direct Modified B31G pressure' if direct_credit
-             else 'Modified B31G with remaining-wall limit')
-    return dict(uncapped_pressure_bar=pressure*10, allowable_wall_pressure_bar=wall_pressure*10,
-                credited_pressure_bar=credited*10, credit_basis=basis)
 
 
 def substrate_capacity(case, groups, eol):
@@ -101,9 +108,16 @@ def substrate_capacity(case, groups, eol):
             raise ValueError('Original pipeline design factor must be greater than zero and no greater than one.')
     if case['ffs_method']=='Modified B31G':
         if case.get('smts_mpa') is None:raise ValueError('Modified B31G requires SMTS.')
-        ps=b31g_pressure_details(case,groups,eol)['credited_pressure_bar']/10
+        ps=min(modified_b31g(case,g['length_mm'],g['eol_wall_mm']) for g in groups)
+        allowable=case.get('allowable_stress_mpa')
+        if allowable is None and case.get('original_design_factor') is not None:
+            allowable=case['smys_mpa']*case['original_design_factor']
+        if allowable is not None:
+            if allowable<=0:raise ValueError('Allowable stress must be positive.')
+            if not uses_direct_b31g_credit(case):
+                ps=min(ps,2*allowable*eol/case['od_mm'])
     else:
         if case.get('assessed_mawp_bar') is None:raise ValueError('Substrate credit requires assessed impaired-pipe MAWP.')
         ps=case['assessed_mawp_bar']/10
     if ps<0:raise ValueError('Assessed capacities cannot be negative.')
-    return ps,None
+    return ps,axial_capacity_details(case,ps)['force_kn']*1000

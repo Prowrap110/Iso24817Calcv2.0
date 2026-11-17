@@ -15,17 +15,16 @@ from openpyxl.utils import get_column_letter
 from openpyxl.utils.exceptions import InvalidFileException
 from openpyxl.worksheet.datavalidation import DataValidation
 
-from . import ISO_STANDARD as STANDARD
-from . import LEGACY_INPUT_FIELDS
 from .schema import DEFECT_FIELDS, FIELD_DEFINITIONS, LOAD_FIELDS, SECTIONS, default_case
 from .commercial import add_commercial_summary
+from .weighted import HEADERS as WEIGHT_HEADERS, WEIGHTS, read_weights, takeoff, validate_repairs
 
 SETUP = "Batch Setup"
 LINES = "Line Defaults"
 CASES = "Repair Cases"
 DEFECTS = "Defect Details"
 ENGINEERING = "Load and Engineering Details"
-LEGACY_TEMPLATE_STANDARD = "ISO 24817:2026"
+STANDARD = "ISO 24817:2026"
 VERSION = "PROWRAP CalcBatch v2.0"
 FIRST_ROW = 5
 MAX_FILE_MB = 10
@@ -131,6 +130,7 @@ class PreparedBatch:
     repairs: list[PreparedRepair]
     warnings: list[tuple]
     rates: dict
+    weights: dict = field(default_factory=dict)
 
 
 def _definition(key):
@@ -217,11 +217,7 @@ def _input_table(workbook, title, instruction, fields, visible):
             dimension.outlineLevel = 1
             dimension.hidden = True
         _add_choice_validation(sheet, key, f"{letter}{FIRST_ROW}:{letter}{4 + LIMITS[title]}")
-        if key in LEGACY_INPUT_FIELDS or key in (
-            'pressure_basis', 'maop_bar', 'min_pressure_bar', 'b31g_safety_factor',
-            'original_design_factor', 'ffs_ref', 'grouping_ref', 'qualification_ref',
-            'qualified_wall_loss_pct', 'putty_kg_per_repair', 'strain_basis', 'sharing_basis',
-        ):
+        if key in ('pressure_basis', 'maop_bar', 'min_pressure_bar', 'b31g_safety_factor', 'original_design_factor', 'ffs_ref', 'grouping_ref', 'qualification_ref', 'qualified_wall_loss_pct', 'axial_mawp_bar', 'assessed_axial_capacity_kn', 'putty_kg_per_repair'):
             sheet.cell(4, index).comment = Comment(_setup_note(key), 'PROWRAP')
         for row in range(FIRST_ROW, 15):
             cell = sheet.cell(row, index)
@@ -239,7 +235,7 @@ def template_workbook():
     workbook = Workbook()
     setup = workbook.active
     setup.title = SETUP
-    _banner(setup, VERSION, "Enter common values once. This template calculates using ISO 24817:2017.")
+    _banner(setup, VERSION, "Enter common values once. Use the current template for each batch.")
     _write(setup, 1, (VERSION, STANDARD))
     setup["B1"].font = Font(name="Calibri", color=BLUE, bold=True)
     guide = (
@@ -297,6 +293,13 @@ def template_workbook():
         "Use a Load ID for each load case. Leave it blank for repair-level engineering inputs.",
         tuple(LOAD_FIELDS) + ENGINEERING_CASE_FIELDS, len(LOAD_FIELDS) + len(ENGINEERING_CASE_FIELDS),
     )
+    weights = workbook.create_sheet(WEIGHTS)
+    _banner(weights, WEIGHTS, 'Optional. List all estimate scenario IDs with quantity 1 in Repair Cases. Shares in each pipe group must total 100%.')
+    _header(weights, 4, WEIGHT_HEADERS)
+    weights.freeze_panes = 'C5'
+    for index, width in enumerate((27, 24, 15, 18, 15, 20, 22, 18, 19), 1):
+        weights.column_dimensions[get_column_letter(index)].width = width
+    weights.column_dimensions['E'].number_format = '0.00%'
     return _save(workbook)
 
 
@@ -304,7 +307,7 @@ def _setup_note(key):
     if key == 'putty_kg_per_repair':
         return 'Optional putty kg for one defect/repair row. Repair entry overrides line and batch values; blank inherits, then uses the automatic allowance. Explicit zero means no putty. Quantity is multiplied once. Automatic corrosion allowance: 2 kg up to 200 mm axial defect/zone length, 3 kg up to 400 mm, then +1 kg per further started 200 mm. Dents use one third of rectangular defect volume at 2 kg/L.'
     if key == 'strain_basis':
-        return 'LTS uses the selected base long-term strain of 0.007 (0.7%). Design requires verified ISO 24817:2017 Annex E material data. Use the qualification reference field to record applicable evidence.'
+        return 'LTS uses the owner-selected long-term strain 0.007 (0.7%) for both products before design-life, temperature, cyclic and thermal-strain factors. Default retains the standard strain route.'
     if key == 'substrate_route':
         return 'Corrosion design-route selection. Dent no-crack automatically uses Substrate stress limit with assessed dent MAWP, including existing workbooks that enter Full laminate.'
     if key == 'dent_mawp_bar':
@@ -312,29 +315,29 @@ def _setup_note(key):
     if key == 'dent_ffs_ref':
         return 'Dent assessment reference establishing MAWP and applicability. Required for measured dents and population estimates.'
     if key == 'allowable_stress_mpa':
-        return 'For dents, optional manual allowable-stress override; blank uses SMYS × original design factor. The installation pressure is checked against the assessed dent MAWP. For corrosion, the selected route determines how allowable stress applies.'
+        return 'For dents, optional manual allowable-stress override; blank uses SMYS × original design factor. Installation stress remains part of the stress-limit calculation. For corrosion, used by the selected route.'
     if key == 'pressure_basis':
         return 'Choose Design pressure (default) or MAOP for the base repair calculation. Enter the selected pressure. Named load cases retain their explicit pressure overrides; blank load pressures inherit the selected base pressure.'
     if key == 'maop_bar':
-        return 'Maximum allowable operating pressure [bar]. Used as the base calculation pressure only when Pressure basis is MAOP. Enter the assessed impaired-pipe MAWP separately.'
+        return 'Maximum allowable operating pressure [bar]. Used as the base calculation pressure only when Pressure basis is MAOP. Separate from impaired-pipe MAWP and the axial-capacity MAWP override.'
     if key == 'min_pressure_bar':
         return 'Defaults to 0 bar. Enter a manual minimum if required; blank inherits line/batch settings, then 0. Used for pressure bounds and the installation/disbond assessment.'
     if key == 'qualification_ref':
-        return 'Record an applicable Annex E qualification reference for the LTS strain basis. Design also requires verified material data. For Default strain, a substrate-credit qualification reference may be recorded when available.'
+        return 'Optional substrate-credit qualification reference. Blank does not prevent calculation; the confirmed qualified wall-loss limit and all substrate-credit checks still apply.'
     if key == 'qualified_wall_loss_pct':
         return 'Default 81% for PRW110 and PRW110+. Enter a manual limit to override. Blank inherits repair/engineering, line or batch settings; with no entered limit, uses 81%. End-of-life wall loss must be strictly below the selected limit.'
     if key == 'grouping_ref':
         return 'Optional inspection/grouping reference. Blank does not prevent calculation. Confirm dimensions and noninteraction and enter the overall zone span; independent-defect applicability checks still apply.'
-    if key in LEGACY_INPUT_FIELDS:
-        return 'Legacy workbook field kept for input history. Leave this field blank for new ISO 24817:2017 batches.'
-    if key == 'sharing_basis':
-        return 'Use Known allowable stress for ISO 24817:2017 load sharing. Other prior choices require separate engineering assessment.'
+    if key == 'axial_mawp_bar':
+        return 'Optional axial-only MAWP override in bar. Blank inherits; with no pressure or legacy force override, Fs = A × assessed Ps. Zero means no axial credit. Does not replace hoop Ps.'
+    if key == 'assessed_axial_capacity_kn':
+        return 'Legacy force override, including zero, is retained. Leave blank for automatic Fs from Ps or the axial MAWP option. Do not populate both force and pressure overrides.'
     if key == 'ffs_ref':
         return 'Optional assessment reference. Blank does not prevent calculation; applicability and capacity checks still apply.'
     if key == 'b31g_safety_factor':
         return 'Optional manual override (minimum 1.25). Blank inherits any line/batch override; if none, automatic = max(1 / original design factor, 1.25).'
     if key == 'original_design_factor':
-        return 'Decimal factor, e.g. 0.72. For Modified B31G, automatic safety factor = max(1 / factor, 1.25). The remaining-wall allowable pressure uses this factor or a manual allowable stress.'
+        return 'Decimal factor, e.g. 0.72. For dents, allowable substrate stress = SMYS × factor unless manually overridden. For Modified B31G, automatic safety factor = max(1 / factor, 1.25).'
     default = FIELD_DEFINITIONS[key]["default"]
     if key in ("growth_basis", "load_basis", "landing_mode"):
         return "Choose the confirmed basis for the repairs in scope."
@@ -419,7 +422,7 @@ def _read_row(record, cells):
 
 
 def _read_setup(sheet):
-    if sheet["A1"].value != VERSION or sheet["B1"].value not in (STANDARD, LEGACY_TEMPLATE_STANDARD):
+    if sheet["A1"].value != VERSION or sheet["B1"].value != STANDARD:
         raise WorkbookError("Download the current CalcBatch v2.0 Excel template and copy your values into it.")
     if sheet.max_row > 250 or sheet.max_column > 4:
         raise WorkbookError("Batch Setup contains entries outside its controlled columns or rows.")
@@ -583,13 +586,16 @@ def prepare_workbook(content: bytes) -> PreparedBatch:
             if not {SETUP, LINES, CASES, DEFECTS, ENGINEERING} <= set(workbook.sheetnames):
                 raise WorkbookError("Required input sheets are missing. Download the current CalcBatch Excel template.")
             setup = _read_setup(workbook[SETUP])
-            source_standard = workbook[SETUP]["B1"].value
             def compatible(fields):
                 return tuple(key for key in fields if key not in setup.missing_fields)
             line_rows = _read_table(workbook[LINES], compatible(LINE_FIELDS))
             sources = _read_table(workbook[CASES], compatible(CASE_FIELDS))
             defect_rows = _read_table(workbook[DEFECTS], tuple(DEFECT_FIELDS) + DEFECT_CASE_FIELDS)
             load_rows = _read_table(workbook[ENGINEERING], compatible(tuple(LOAD_FIELDS) + ENGINEERING_CASE_FIELDS))
+            try:
+                weights = read_weights(workbook[WEIGHTS], LIMITS[CASES]) if WEIGHTS in workbook.sheetnames else {}
+            except ValueError as error:
+                raise WorkbookError(str(error)) from error
         finally:
             workbook.close()
     except (BadZipFile, InvalidFileException, KeyError, OSError, ParseError, TypeError, ValueError) as error:
@@ -597,11 +603,6 @@ def prepare_workbook(content: bytes) -> PreparedBatch:
             raise
         raise WorkbookError("The Excel file could not be read. Save a new copy as .xlsx and upload it.") from error
     warnings = []
-    if source_standard == LEGACY_TEMPLATE_STANDARD:
-        warnings.append((
-            None, SETUP, 1, "INPUT_BASIS",
-            f"Imported inputs from a workbook marked {source_standard}. All repairs are calculated using {STANDARD}.",
-        ))
     lines = _by_id(line_rows, "line_id")
     ids = _by_id(sources, "repair_id")
     for record in lines.get("", []):
@@ -634,7 +635,11 @@ def prepare_workbook(content: bytes) -> PreparedBatch:
     if rates and len(rates) != len(RATE_FIELDS):
         warnings.append((None, SETUP, None, "COMMERCIAL", "Enter currency and both unit rates to calculate cost."))
         rates = {}
-    return PreparedBatch(repairs, warnings, rates)
+    try:
+        validate_repairs(weights, repairs)
+    except ValueError as error:
+        raise WorkbookError(str(error)) from error
+    return PreparedBatch(repairs, warnings, rates, weights)
 
 
 def _input_error(case, issues):
@@ -699,7 +704,7 @@ def _effective_inputs(calculations):
         ignored_dent_fields = ()
         if dent:
             dent_origins = {
-                'substrate_route': f"{STANDARD} · {dent['clauses']}",
+                'substrate_route': 'ISO 24817:2026 · ' + dent['clauses'],
                 'ffs_method': dent['source'],
                 'assessed_mawp_bar': dent['source'],
                 'allowable_stress_mpa': dent['allowable_stress_source'],
@@ -719,20 +724,20 @@ def _effective_inputs(calculations):
         selected = result.get('details', {}).get('b31g')
         if selected:
             yield result_id, 'Repair', 'B31G safety factor used', selected['safety_factor'], selected['source']
-            yield result_id, 'Repair', 'Modified B31G pressure before wall cap [bar]', selected['uncapped_pressure_bar'], 'Modified B31G'
-            yield result_id, 'Repair', 'Modified B31G credit basis', selected['credit_basis'], 'Calculator policy'
-            yield result_id, 'Repair', 'Remaining-wall allowable pressure [bar]', selected['allowable_wall_pressure_bar'], 'ISO 24817:2017 Annex K'
-        substrate_pressure = result.get('details', {}).get('substrate_pressure_mpa')
-        if substrate_pressure is not None and effective_case['substrate_route'] != 'Full laminate':
-            yield result_id, 'Repair', 'Remaining-pipe Ps [bar]', substrate_pressure * 10, dent['source'] if dent else case['ffs_method']
+            if selected.get('credit_basis'):
+                yield result_id, 'Repair', 'Modified B31G credit basis', selected['credit_basis'], 'Independent 10x10 estimate'
+        axial = result.get('details', {}).get('axial_capacity')
+        if axial and effective_case['substrate_route'] != 'Full laminate':
+            yield result_id, 'Repair', 'Axial capacity used [kN]', axial['force_kn'], axial['source']
+            if axial['pressure_bar'] is not None:
+                yield result_id, 'Repair', 'Axial pressure basis [bar]', axial['pressure_bar'], axial['source']
+            yield result_id, 'Repair', 'Remaining-pipe Ps [bar]', result['details']['substrate_pressure_mpa']*10, dent['source'] if dent else case['ffs_method']
         for key, value in effective_case.items():
             if key not in FIELD_DEFINITIONS or key in ignored_dent_fields or _is_blank(value):
                 continue
             origin = dent_origins.get(key, repair.origins.get(key))
             if key not in dent_origins and case.get("population_estimate") and value != repair.case.get(key):
                 origin = "60/40 dent population"
-            if key in LEGACY_INPUT_FIELDS:
-                origin = f"Legacy workbook field, record only · {origin or 'Entered value'}"
             yield result_id, "Repair", _label(key), value, origin
         for records, record_key, sheet in (
             (repair.defects, "defect_id", DEFECTS), (repair.loads, "load_id", ENGINEERING),
@@ -777,6 +782,45 @@ def _summary(results, rates, warnings):
     return rows
 
 
+def _write_takeoff(workbook, weights, results):
+    totals, groups, scenarios = takeoff(weights, results)
+    summary = _output_table(
+        workbook, 'Tender Takeoff',
+        'Estimate using the ISO 24817:2026-based v2 engine. See Tender Scenarios for weights and Results for unit sizing.',
+        ('Scope', 'Repairs', 'Fabric [m²]', 'Laminate epoxy [kg]', 'Calculated putty [kg]',
+         'Offered putty [1 kg kits]', 'Epoxy plus offered putty [kg]'),
+        totals, (23, 12, 16, 19, 20, 22, 25),
+    )
+    if totals:
+        for cell in summary[5]:
+            cell.font = Font(name='Calibri', bold=True, color=NAVY)
+    else:
+        _write(summary, 5, ('Incomplete weighted estimate. Review invalid cases on Tender Scenarios and Warnings.',))
+    _output_table(
+        workbook, 'Tender Pipe Groups',
+        'Offered putty rounds up the higher of weighted putty mass and the tender minimum converted to 1 kg kits.',
+        ('Pipe group', 'Mechanism', 'Diameter [in]', 'Repairs', 'Fabric [m²]', 'Laminate epoxy [kg]',
+         'Calculated putty [kg]', 'Tender minimum [L]', 'Yield [L/kit]', 'Offered putty [1 kg kits]',
+         'Offered yield [L]', 'Epoxy plus offered putty [kg]'),
+        groups, (23, 19, 14, 10, 16, 19, 20, 18, 14, 23, 16, 25),
+    )
+    audit = _output_table(
+        workbook, 'Tender Scenarios',
+        'One sizing per scenario. Group quantity × scenario share gives equivalent repairs. Width is distribution metadata.',
+        ('Repair ID', 'Pipe group', 'Status', 'Group quantity', 'Scenario share', 'Equivalent repairs',
+         'Zone width basis', 'Zone width [mm]', 'Weighted fabric [m²]', 'Weighted epoxy [kg]', 'Weighted putty [kg]'),
+        scenarios, (26, 23, 24, 14, 14, 16, 16, 15, 20, 20, 20),
+    )
+    for cell in audit['E'][4:]:
+        cell.number_format = '0.00%'
+    for sheet, columns in ((summary, (3, 4, 5, 7)), (workbook['Tender Pipe Groups'], (5, 6, 7, 8, 9, 11, 12)),
+                           (audit, (8, 9, 10, 11))):
+        for index in columns:
+            for cell in sheet[get_column_letter(index)][4:]:
+                if cell.data_type == 'n':
+                    cell.number_format = '#,##0.00'
+
+
 def calculate_batch(batch: PreparedBatch) -> tuple[bytes, list[dict]]:
     """Evaluate each independent repair and export results with input provenance."""
     calculations = list(_evaluate(batch))
@@ -790,19 +834,21 @@ def calculate_batch(batch: PreparedBatch) -> tuple[bytes, list[dict]]:
 
     workbook = Workbook()
     workbook.remove(workbook.active)
-    workbook.properties.subject = f"{STANDARD} engineering calculation"
+    if batch.weights:
+        _write_takeoff(workbook, batch.weights, results)
     summary = _output_table(
-        workbook, "Summary and Cost",
+        workbook, "Unit Scenario Summary" if batch.weights else "Summary and Cost",
         f"{STANDARD}  |  Calculated and indicative estimate material totals are shown separately.",
         ("Status", "Result rows", "Repair quantity", "Fabric [m²]", "Laminate epoxy [kg]",
          "Putty [kg]", "Epoxy including putty [kg]", "Material cost", "Currency"),
-        _summary(results, batch.rates, warnings), (26, 14, 17, 17, 19, 15, 23, 18, 14),
+        _summary(results, {} if batch.weights else batch.rates, warnings), (26, 14, 17, 17, 19, 15, 23, 18, 14),
     )
-    add_commercial_summary(summary, results, batch.rates)
+    if not batch.weights:
+        add_commercial_summary(summary, results, batch.rates)
     headers = ("Repair ID", "Source Repair ID", "Source row", "Status", "Asset / line", "Type", "Governing load") + tuple(RESULT_FIELDS.values())
     _output_table(
         workbook, "Results",
-        f"{STANDARD} engineering calculation. Repair dimensions apply to one repair. Material and band totals include quantity.",
+        "Calculation for engineering review. Repair dimensions apply to one repair. Material and band totals include quantity.",
         headers,
         (
             (result["repair_id"], repair.case["repair_id"], repair.source.number, result["status"],
