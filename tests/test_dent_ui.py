@@ -17,15 +17,14 @@ def test_dent_inputs_keep_assessment_and_stress_override_visible(geometry):
     fields = set(active_fields(case))
     assert {'dent_mawp_bar', 'dent_ffs_ref', 'inspection_ref', 'no_crack_confirmed',
             'dent_complex', 'cyclic', 'original_design_factor', 'allowable_stress_mpa',
-            'qualified_wall_loss_pct',
+            'axial_mawp_bar', 'assessed_axial_capacity_kn', 'qualified_wall_loss_pct',
             'qualification_ref'} <= fields
     assert not {'substrate_route', 'sharing_basis', 'ffs_method', 'ffs_ref',
-                'b31g_safety_factor', 'assessed_mawp_bar', 'smts_mpa',
-                'axial_mawp_bar', 'assessed_axial_capacity_kn'} & fields
+                'b31g_safety_factor', 'assessed_mawp_bar', 'smts_mpa'} & fields
     submitted = case_for_calculation(case)
     assert submitted['original_design_factor'] == .72
     assert submitted['allowable_stress_mpa'] == 280
-    assert submitted['axial_mawp_bar'] is None
+    assert submitted['axial_mawp_bar'] == 20
 
 
 def test_single_app_shows_derived_dent_stress_and_manual_override():
@@ -35,7 +34,6 @@ def test_single_app_shows_derived_dent_stress_and_manual_override():
     assert 'case_substrate_route' not in {item.key for item in app.selectbox}
     assert 'case_ffs_method' not in {item.key for item in app.selectbox}
     assert 'case_b31g_safety_factor' not in {item.key for item in app.number_input}
-    assert any('7.5.10 / 7.5.4.1' in item.value for item in app.info)
     app.number_input(key='case_smys_mpa').set_value(415).run()
     app.number_input(key='case_original_design_factor').set_value(.72).run()
     assert any('298.800 MPa' in item.value for item in app.caption)

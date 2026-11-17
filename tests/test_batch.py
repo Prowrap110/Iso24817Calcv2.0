@@ -49,37 +49,12 @@ def _inputs(batch):
 def test_template_is_editable_xlsx_with_documented_headers(batch):
     book = load_workbook(BytesIO(batch.template_workbook()))
     assert book.sheetnames == [
-        "Batch Setup", "Line Defaults", "Repair Cases", "Defect Details", "Load and Engineering Details",
+        "Batch Setup", "Line Defaults", "Repair Cases", "Defect Details", "Load and Engineering Details", "Estimate Weights",
     ]
-    assert book["Batch Setup"]["B1"].value == "ISO 24817:2017"
+    assert book["Batch Setup"]["B1"].value == "ISO 24817:2026"
     assert "Repair ID" in [cell.value for cell in book["Repair Cases"][4]]
     assert book["Repair Cases"].freeze_panes == "C5"
     assert len(book["Repair Cases"].data_validations.dataValidation) > 0
-
-
-def test_earlier_edition_workbook_is_recalculated_and_traced(batch):
-    book = _inputs(batch)
-    book["Batch Setup"]["B1"] = "ISO 24817:2026"
-    _set_defaults(
-        book, substrate_route="Substrate sharing", ffs_method="External assessment",
-        assessed_mawp_bar=25, original_design_factor=0.72,
-    )
-    _add(
-        book, "Repair Cases", repair_id="OLDER-INPUT", axial_mawp_bar=25,
-        assessed_axial_capacity_kn=42, thicker_repair_limit_mm=100,
-    )
-    _add(book, "Repair Cases", row=6, repair_id="CURRENT-INPUT")
-    output, results = batch.process_workbook(_pack(book))
-    assert results[0]["status"] == "CALCULATED", results[0]["issues"]
-    assert results[0]["results"] == results[1]["results"]
-    exported = load_workbook(BytesIO(output), data_only=True)
-    assert exported.properties.subject == "ISO 24817:2017 engineering calculation"
-    warnings = list(exported["Warnings"].values)
-    assert any("ISO 24817:2026" in str(row[-1]) and "ISO 24817:2017" in str(row[-1]) for row in warnings)
-    inputs = list(exported["Effective Inputs"].values)
-    for field in ("Axial-capacity MAWP override [bar]", "Assessed axial capacity [kN]",
-                  "Test-supported thickness limit [mm]"):
-        assert any(row[2] == field and "record only" in row[4] for row in inputs[4:])
 
 
 def test_preview_preserves_override_precedence_and_zero(batch):

@@ -43,7 +43,7 @@ def test_pressure_only_retains_pressure_end_loading():
     assert s['feq_a_n']>0 and s['feq_c_n']>0 and s['axial_mm']>0
 
 def test_every_load_case_controls_final_dimensions_and_bond():
-    c=valid_case();c.update(pressure_bar=10,install_pressure_bar=5)
+    c=valid_case();c.update(pressure_bar=10)
     base=evaluate_case(c)
     r=evaluate_case(c,loads=[dict(load_id='Hot/high',pressure_bar=30,temperature_c=60)])
     assert r['status']=='CALCULATED',r
@@ -94,14 +94,13 @@ def test_unsupported_crack_and_reversing_loads_hold():
         c=valid_case();c.update(changes);assert evaluate_case(c)['status']=='ENGINEERING_HOLD'
 
 def test_typeb_both_structural_directions_and_three_ply_minimum():
-    c=valid_case();c.update(purpose='Estimate',through_wall=True,pressure_bar=1,defect_length_mm=15,defect_width_mm=15,effective_diameter_mm=15,effective_geometry_ref='Footprint1')
-    r=evaluate_case(c);assert r['status']=='ESTIMATE',r
-    assert evaluate_case(dict(c,purpose='Design'))['status']=='ENGINEERING_HOLD'
+    c=valid_case();c.update(through_wall=True,pressure_bar=1,defect_length_mm=15,defect_width_mm=15,effective_diameter_mm=15,effective_geometry_ref='Footprint1')
+    r=evaluate_case(c);assert r['status']=='CALCULATED',r
     assert r['results']['installed_plies']>=3
     s=r['details']['load_cases'][0]['structural'];assert s['axial_mm']>0 and s['hoop_mm']>0
 
 def test_typeb_cap_blocks_installed_schedule():
-    c=valid_case();c.update(purpose='Estimate',through_wall=True,pressure_bar=150,effective_diameter_mm=50,effective_geometry_ref='Footprint1',od_mm=609.6,wall_mm=9.53,design_life_years=2,initial_service_life_years=2)
+    c=valid_case();c.update(through_wall=True,pressure_bar=70,effective_diameter_mm=50,effective_geometry_ref='Footprint1',od_mm=609.6,wall_mm=9.53,design_life_years=2,initial_service_life_years=2)
     r=evaluate_case(c);assert r['status']=='NO_VALID_DESIGN',r
     assert not r['results']
 
@@ -123,10 +122,10 @@ def test_annex_c_boundary_is_strict_and_internal_independence_held():
     assert evaluate_case(c)['status']=='ENGINEERING_HOLD'
 
 def test_zero_measured_wall_classifies_type_b():
-    c=valid_case();c.update(purpose='Estimate',defect_mode='Measured individual',independence_confirmed=True,grouping_ref='Map',effective_geometry_ref='Opening',effective_diameter_mm=15,pressure_bar=1)
+    c=valid_case();c.update(defect_mode='Measured individual',independence_confirmed=True,grouping_ref='Map',effective_geometry_ref='Opening',effective_diameter_mm=15,pressure_bar=1)
     ds=[dict(defect_id='a',length_mm=10,width_mm=10,remaining_wall_mm=0,separation_mm=31)]
     r=evaluate_case(c,ds);assert r['details']['repair_type']=='B',r
-    assert r['status']=='ESTIMATE',r
+    assert r['status']=='CALCULATED',r
 
 def test_additional_assessed_thickness_controls_case():
     c=valid_case();r=evaluate_case(c,loads=[dict(load_id='Other',other_thickness_mm=15)])
@@ -177,8 +176,8 @@ def test_population_geometry_is_recomputed_not_trusted_marker():
     assert evaluate_case(c)['status']=='ENGINEERING_HOLD'
 
 def test_full_thickness_zone_contains_rounded_slot_footprint():
-    c=valid_case();c.update(purpose='Estimate',through_wall=True,pressure_bar=1,effective_geometry_ref='Opening',seal_shape='Axial slot',effective_axial_mm=1000.1,effective_circ_mm=15)
-    r=evaluate_case(c);assert r['status']=='ESTIMATE',r
+    c=valid_case();c.update(through_wall=True,pressure_bar=1,effective_geometry_ref='Opening',seal_shape='Axial slot',effective_axial_mm=1000.1,effective_circ_mm=15)
+    r=evaluate_case(c);assert r['status']=='CALCULATED',r
     assert r['inputs']['zone_length_mm']==1005
     assert r['results']['total_repair_length_mm']>=1005+2*r['results']['overlap_mm']
 

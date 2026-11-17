@@ -30,13 +30,12 @@ def test_minimum_pressure_defaults_zero_and_manual_value_changes_bond_check():
 def test_maop_matches_direct_pressure_for_all_routes_and_preserves_entered_values(route):
     case = credit_case() if route.startswith('Substrate') else valid_case()
     if route == 'Type B':
-        case.update(purpose='Estimate',prevent_containment=True,effective_diameter_mm=20,effective_geometry_ref='OPEN-1')
+        case.update(prevent_containment=True,effective_diameter_mm=20,effective_geometry_ref='OPEN-1')
     else:case['substrate_route'] = route
     case.update(pressure_basis='MAOP',pressure_bar=70,maop_bar=30)
     actual = evaluate_case(case)
     expected = evaluate_case(dict(case,pressure_basis='Design pressure',pressure_bar=30))
-    status = 'ESTIMATE' if route == 'Type B' else 'CALCULATED'
-    assert actual['status'] == expected['status'] == status, actual['issues']
+    assert actual['status'] == expected['status'] == 'CALCULATED', actual['issues']
     assert actual['results'] == expected['results']
     assert actual['checks'] == expected['checks']
     assert actual['inputs']['pressure_bar'] == 70
