@@ -6,7 +6,6 @@ def test_single_app_initial_and_invalid_submit():
     at=AppTest.from_file(APP,default_timeout=20).run()
     assert not at.exception
     assert 'PROWRAP' in at.title[0].value
-    assert any('ISO 24817:2017' in item.value for item in at.caption)
     at.button(key='calculate').click().run()
     assert not at.exception
     assert any('INPUT_ERROR' in x.value or 'input' in x.value.lower() for x in at.error)

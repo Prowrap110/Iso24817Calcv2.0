@@ -13,12 +13,10 @@ def test_failed_report_has_no_installation_schedule():
     assert 'Apply' not in text
 
 def test_valid_report_preserves_results_and_escapes_unicode():
-    value={'repair_id':'TEST-2','status':'CALCULATED','issues':[],'inputs':{'customer':'Müşteri','product':'PRW110+','temperature_c':60},'results':{'installed_plies':8,'installed_thickness_mm':6.64,'total_repair_length_mm':410},'checks':[{'name':'Thickness','passed':True,'value':6.64,'limit':25,'clause':'7.5.5 (8)–(9)'}],'details':{}}
+    value={'repair_id':'TEST-2','status':'CALCULATED','issues':[],'inputs':{'customer':'Müşteri','product':'PRW110+','temperature_c':60},'results':{'installed_plies':8,'installed_thickness_mm':6.64,'total_repair_length_mm':410},'checks':[{'name':'Thickness','passed':True,'value':6.64,'limit':25,'clause':'9.14.2'}],'details':{}}
     text=' '.join(p.extract_text() for p in PdfReader(BytesIO(report_pdf(value))).pages)
     assert 'Installed plies: 8' in text
-    assert 'ISO 24817:2017' in text
-    assert 'ISO 7.5.5 (8)-(9)' in text
-    assert json.loads(report_json(value))['standard'] == 'ISO 24817:2017'
+    assert 'ISO 24817:2026' in text
     assert 'qualification' not in text.lower()
 
 

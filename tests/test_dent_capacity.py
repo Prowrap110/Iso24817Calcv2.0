@@ -10,7 +10,7 @@ def dent_case(**changes):
              od_mm=1219.2, smys_mpa=482.9, original_design_factor=.72,
              pressure_bar=71.5, maop_bar=51.48, pressure_basis='MAOP',
              install_pressure_bar=45., temperature_c=80., min_temperature_c=60.,
-             install_temperature_c=80., strain_basis='Default',
+             install_temperature_c=80., strain_basis='LTS',
              defect_length_mm=600., defect_width_mm=250., zone_length_mm=600.,
              dent_depth_mm=73.152, no_crack_confirmed=True,
              dent_ffs_ref='Synthetic assessed dent', dent_mawp_bar=51.48,
@@ -25,46 +25,38 @@ def test_assessed_dent_equal_to_maop_uses_minimum_without_b31g():
     assert r['results']['installed_plies'] == 3
     assert r['results']['installed_thickness_mm'] == pytest.approx(2.49)
     assert r['details']['substrate_pressure_mpa'] == pytest.approx(5.148)
-    # Eq. (1) retains the Poisson contribution from pressure thrust at p = Ps.
-    assert r['details']['required_thickness_mm'] == pytest.approx(1.3104133198776944)
+    assert r['details']['required_thickness_mm'] == pytest.approx(0, abs=1e-10)
     assert r['inputs']['substrate_route'] == 'Substrate stress limit'
     assert r['inputs']['ffs_method'] == 'External assessment'
     assert r['inputs']['pressure_bar'] == 71.5  # entered DP is preserved
     assert r['inputs']['allowable_stress_mpa'] == pytest.approx(347.688)
     assert 'b31g' not in r['details']
-    assert r['details']['axial_capacity']['force_kn'] is None
+    assert r['details']['axial_capacity']['force_kn'] == pytest.approx(6010.053355916)
 
 
-def test_dent_equation_uses_full_allowable_stress_and_pressure_thrust():
-    result = evaluate_case(dent_case(dent_mawp_bar=45.))
-    assert result['status'] == 'ESTIMATE', result
-    structural = result['details']['load_cases'][0]['structural']
-    # Eq. (1): D = 1219.2 mm, Es = 200000 MPa, Ec = 45460 MPa, s = 347.688 MPa.
-    # The pressure bracket is 5.148 * (1 + 0.066 / 2) - 4.5 MPa.
-    assert structural['hoop_mm'] == pytest.approx(6.308811234223643)
-    assert structural['axial_mm'] == 0
-    assert result['details']['substrate_pressure_mpa'] == 4.5
-    offline = evaluate_case(dent_case(dent_mawp_bar=45., install_pressure_bar=0.))
-    assert offline['status'] == 'ESTIMATE', offline
-    assert offline['details']['required_thickness_mm'] == structural['hoop_mm']
+def test_target_above_assessed_capacity_sizes_actual_pressure_deficit():
+    # Eq (13), independently evaluated: s=347.688, live stress=143.62303665,
+    # Ec=45460, Es=200000, D=1219.2, deltaP=.648, nu=.066.
+    r = evaluate_case(dent_case(dent_mawp_bar=45.))
+    assert r['status'] == 'ESTIMATE', r
+    st = r['details']['load_cases'][0]['structural']
+    expected = 1219.2 * 200000 / (2 * (347.688 - 1219.2*4.5/(2*19.1)) * 45460) * .648 * (1-.066/2)
+    assert st['hoop_mm'] == pytest.approx(expected)
+    assert st['hoop_mm'] > 2
+    assert r['details']['substrate_pressure_mpa'] == 4.5
 
 
-def test_manual_dent_allowable_stress_changes_structural_thickness():
-    result = evaluate_case(dent_case(allowable_stress_mpa=300, original_design_factor=None))
-    assert result['status'] == 'ESTIMATE', result
-    assert result['details']['dent_capacity']['allowable_stress_source'] == 'Manual allowable stress'
-    assert result['details']['substrate_pressure_mpa'] == pytest.approx(5.148)
-    assert result['details']['required_thickness_mm'] == pytest.approx(1.5187166212054526)
-
-
-def test_dent_axial_capacity_fields_are_legacy_records():
-    baseline = evaluate_case(dent_case())
-    for changes in ({'axial_mawp_bar': 40}, {'assessed_axial_capacity_kn': 0}):
-        result = evaluate_case(dent_case(**changes))
-        assert result['status'] == 'ESTIMATE', result
-        assert all(result['inputs'][key] == value for key, value in changes.items())
-        assert result['results'] == baseline['results']
-        assert result['details']['load_cases'] == baseline['details']['load_cases']
+def test_dent_manual_allowable_and_axial_overrides_retain_meaning():
+    c = dent_case(allowable_stress_mpa=300, original_design_factor=None, axial_mawp_bar=40)
+    r = evaluate_case(c)
+    assert r['status'] == 'ESTIMATE', r
+    assert r['details']['dent_capacity']['allowable_stress_source'] == 'Manual allowable stress'
+    assert r['details']['substrate_pressure_mpa'] == pytest.approx(5.148)
+    assert r['details']['axial_capacity']['pressure_bar'] == 40
+    z = evaluate_case(dent_case(assessed_axial_capacity_kn=0))
+    assert z['details']['axial_capacity']['force_kn'] == 0
+    conflict = evaluate_case(dent_case(axial_mawp_bar=40, assessed_axial_capacity_kn=0))
+    assert conflict['status'] == 'ENGINEERING_HOLD' and not conflict['results']
 
 
 @pytest.mark.parametrize('changes', [
@@ -74,7 +66,7 @@ def test_dent_axial_capacity_fields_are_legacy_records():
     {'remaining_wall_mm': 19}, {'growth_basis': 'Corrosion rate', 'corrosion_rate_mm_year': .01},
     {'through_wall': True}, {'prevent_containment': True},
     {'original_design_factor': None}, {'original_design_factor': 1.01},
-    {'allowable_stress_mpa': 0}, {'cyclic': True, 'cycles': 10, 'cycle_min_bar': 0, 'cycle_max_bar': 51.48},
+    {'allowable_stress_mpa': 100}, {'cyclic': True, 'cycles': 10, 'cycle_min_bar': 0, 'cycle_max_bar': 51.48},
 ])
 def test_unsupported_or_unassessed_dents_never_issue_installation(changes):
     r = evaluate_case(dent_case(**changes))

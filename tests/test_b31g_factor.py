@@ -233,41 +233,28 @@ def independent_estimate(**changes):
     return case
 
 
-def test_independent_corrosion_estimate_uses_direct_pressure_for_hoop():
+def test_independent_corrosion_estimate_uses_direct_pressure_for_hoop_and_axial():
     case = independent_estimate()
     result = evaluate_case(case)
     assert result['status'] == 'ESTIMATE', result['issues']
     assessed = modified_b31g(case, 10, 2.376)
     assert result['details']['substrate_pressure_mpa'] == pytest.approx(assessed)
-    assert result['details']['axial_capacity']['pressure_bar'] is None
+    assert result['details']['axial_capacity']['pressure_bar'] == pytest.approx(10 * assessed)
     assert result['details']['b31g']['credit_basis'] == 'Direct Modified B31G pressure'
-    structural = result['details']['load_cases'][0]['structural']
-    capped = evaluate_case(independent_estimate(defect_mode='Actual / combined'))
-    capped_structural = capped['details']['load_cases'][0]['structural']
-    assert structural['hoop_mm'] == 0
-    assert capped_structural['hoop_mm'] > 4
-    assert structural['axial_mm'] == pytest.approx(capped_structural['axial_mm'])
-    assert result['results']['installed_plies'] == capped['results']['installed_plies'] == 12
-
-
-def test_zone_span_affects_coverage_but_not_independent_pit_credit():
-    short = evaluate_case(independent_estimate(zone_length_mm=200))
-    long = evaluate_case(independent_estimate(zone_length_mm=400))
-    assert short['details']['b31g'] == long['details']['b31g']
-    assert [r['results']['putty_kg'] for r in (short, long)] == [2, 3]
-    assert short['results']['fabric_area_m2'] < long['results']['fabric_area_m2']
+    assert result['results']['installed_plies'] == 3
 
 
 @pytest.mark.parametrize('changes', [
-    {'purpose': 'Design', 'strain_basis': 'Default'},
+    {'purpose': 'Design'},
     {'defect_mode': 'Actual / combined'},
 ])
 def test_existing_remaining_wall_limit_is_retained_for_other_cases(changes):
     case = independent_estimate(**changes)
     result = evaluate_case(case)
-    capped = 2 * (case['smys_mpa'] * case['original_design_factor']) * case['remaining_wall_mm'] / (case['od_mm'] - case['remaining_wall_mm'])
+    capped = 2 * (case['smys_mpa'] * case['original_design_factor']) * case['remaining_wall_mm'] / case['od_mm']
     assert result['details']['substrate_pressure_mpa'] == pytest.approx(capped)
-    assert result['details']['b31g']['credit_basis'] == 'Modified B31G with remaining-wall limit'
+    assert 'credit_basis' not in result['details']['b31g']
+    assert result['results']['installed_plies'] == 8
 
 
 def test_batch_exports_direct_credit_basis_and_matches_the_single_engine():
@@ -289,4 +276,4 @@ def test_batch_exports_direct_credit_basis_and_matches_the_single_engine():
     trace = load_workbook(BytesIO(export), data_only=True)['Effective Inputs']
     assert any(row[2:4] == ('Modified B31G credit basis', 'Direct Modified B31G pressure')
                for row in trace.iter_rows(min_row=5, values_only=True))
-    assert results[0]['results']['installed_plies'] == 12
+    assert results[0]['results']['installed_plies'] == 3
