@@ -1,16 +1,5 @@
 # Release verification — 2.0.0
 
-## ISO 24817:2017 revision — 17 November 2026
-
-The verification suite covers single and batch calculations, output edition labels,
-earlier input workbooks, Type A and Type B equations, and independent thickness
-and fabric quantity checks. Through-wall design and performance-strain design
-depend on the applicable material qualification. Estimate results are identified
-in the calculator and exports.
-
-## Earlier revisions
-
-
 Verified on 10 November 2026 against the supplied ISO 24817:2026 and PRW110+ sources. This is software verification of the implemented scope, not product qualification or an independent engineering certification.
 
 ## Automated verification
