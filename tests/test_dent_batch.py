@@ -30,7 +30,7 @@ def test_legacy_full_laminate_dent_exports_normalized_capacity_and_origins():
     rows = {(row[0], row[2]): (row[3], row[4])
             for row in book['Effective Inputs'].iter_rows(min_row=5, values_only=True)}
     assert rows['DENT', 'Substrate design route'][0] == 'Substrate stress limit'
-    assert '9.10' in rows['DENT', 'Substrate design route'][1]
+    assert '7.5.10 / 7.5.4.1' in rows['DENT', 'Substrate design route'][1]
     assert rows['DENT', 'Remaining capacity assessment'][0] == 'External assessment'
     assert rows['DENT', 'Assessed impaired-pipe MAWP [bar]'][0] == 30
     assert rows['DENT', 'Allowable substrate stress [MPa]'] == (257.76, 'SMYS × original design factor')
@@ -54,7 +54,7 @@ def test_population_geometry_does_not_replace_capacity_provenance():
             for row in sheet.iter_rows(min_row=5, values_only=True)}
     for result in results:
         repair_id = result['repair_id']
-        assert '9.10' in rows[repair_id, 'Substrate design route'][1]
+        assert '7.5.10 / 7.5.4.1' in rows[repair_id, 'Substrate design route'][1]
         assert rows[repair_id, 'Assessed impaired-pipe MAWP [bar]'] == (30, 'Assessed dent MAWP')
         assert rows[repair_id, 'Allowable substrate stress [MPa]'] == (250, 'Manual allowable stress')
         assert rows[repair_id, 'Dent depth [mm]'][1] == '60/40 dent population'

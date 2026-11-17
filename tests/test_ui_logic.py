@@ -27,3 +27,12 @@ def test_cracked_dent_cannot_hide_dimensions_with_population_preset():
     fields = active_fields(case)
     assert {"defect_length_mm", "defect_width_mm"} <= set(fields)
     assert "dent_mode" not in fields
+
+
+def test_legacy_overrides_are_hidden_and_lts_reference_is_available_on_full_laminate():
+    case = default_case()
+    fields = set(active_fields(case))
+    assert "qualification_ref" not in fields
+    assert not fields & {"axial_mawp_bar", "assessed_axial_capacity_kn", "thicker_repair_limit_mm", "thicker_repair_ref"}
+    case["strain_basis"] = "LTS"
+    assert "qualification_ref" in active_fields(case)
