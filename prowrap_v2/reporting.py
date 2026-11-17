@@ -4,8 +4,9 @@ import math
 import unicodedata
 from datetime import datetime, timezone
 from fpdf import FPDF
-from . import __version__
+from . import ISO_STANDARD, LEGACY_INPUT_FIELDS, __version__
 from .schema import FIELD_DEFINITIONS
+
 
 RESULT_LABELS = {
     'installed_plies':'Installed plies', 'installed_thickness_mm':'Installed thickness [mm]',
@@ -27,7 +28,8 @@ def _clean(value):
     return str(value)
 
 def report_json(result):
-    return json.dumps(_clean(result),ensure_ascii=False,indent=2,allow_nan=False).encode('utf-8')
+    record = dict(result, standard=ISO_STANDARD, calculator_version=__version__)
+    return json.dumps(_clean(record),ensure_ascii=False,indent=2,allow_nan=False).encode('utf-8')
 
 def _text(value):
     s=str(value)
@@ -44,7 +46,7 @@ def _value(value):
 class _Report(FPDF):
     def header(self):
         self.set_font('Arial','B',11); self.set_text_color(25,53,78)
-        self.cell(0,7,'PROWRAP  |  ISO 24817:2026',0,1)
+        self.cell(0,7,f'PROWRAP  |  {ISO_STANDARD}',0,1)
         self.set_text_color(0,0,0); self.ln(2)
     def footer(self):
         self.set_y(-13); self.set_font('Arial','',8)
@@ -70,13 +72,15 @@ def report_pdf(result):
     success=result.get('status') in ('CALCULATED','ESTIMATE')
     if success:
         section('Calculated repair and quantities')
-        if result.get('status')=='ESTIMATE': para('TENDER ESTIMATE - quantities use the stated estimating geometry and the v2 sizing basis.',True)
+        if result.get('status')=='ESTIMATE': para('ESTIMATE - quantities use the stated estimating geometry.',True)
         for key,value in result.get('results',{}).items():
             if value is not None: para(f'{RESULT_LABELS.get(key,key.replace("_"," ").capitalize())}: {_value(value)}')
     section('Design input record')
     for key,value in result.get('inputs',{}).items():
         if value is None or value=='': continue
         label=FIELD_DEFINITIONS.get(key,{}).get('label',key.replace('_',' '))
+        if key in LEGACY_INPUT_FIELDS:
+            label = "Legacy workbook field (record only) - " + label
         para(f'{label}: {_value(value)}',size=9)
     if result.get('checks'):
         section('Calculated checks')

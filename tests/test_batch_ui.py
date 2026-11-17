@@ -8,6 +8,7 @@ def test_batch_app_initial_download_and_upload_are_available():
     assert not app.exception
     assert [node.label for node in app.get("download_button")] == ["Download Excel template"]
     assert len(app.get("file_uploader")) == 1
+    assert any("ISO 24817:2017" in item.value for item in app.caption)
     assert not app.button
 
 

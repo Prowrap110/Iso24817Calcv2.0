@@ -1,4 +1,4 @@
-"""Pressure-based axial credit must preserve hoop Ps and workbook semantics."""
+"""ISO 24817:2017 sizing and compatibility with legacy axial inputs."""
 from io import BytesIO
 from pathlib import Path
 
@@ -25,34 +25,36 @@ def capacity(case):
     return substrate_capacity(case, [dict(length_mm=100, eol_wall_mm=4.5)], 4.5)
 
 
-def test_default_uses_final_capped_ps_for_axial_force():
+def test_default_caps_hoop_pressure_at_annex_k_remaining_wall_pressure():
     case = axial_case()
     case['ffs_method'] = default_case()['ffs_method']
     ps, fs = capacity(case)
-    # Original-code limit 2*350*4.5/457.2, below raw MB31G 9.9518736 MPa.
-    assert ps == pytest.approx(6.889763779527559)
-    assert fs == pytest.approx(1131114.726961737)
+    # Annex K remaining-wall pressure is below raw Modified B31G (9.9519 MPa).
+    assert ps == pytest.approx(2 * 350 * 4.5 / (457.2 - 4.5))
+    assert fs is None
 
 
-@pytest.mark.parametrize('mawp,force', [(20, 328346.446455179), (0, 0)])
-def test_manual_bar_override_changes_only_axial_credit(mawp, force):
-    ps, fs = capacity(axial_case(axial_mawp_bar=mawp))
-    assert ps == pytest.approx(6.889763779527559)
-    assert fs == pytest.approx(force)
+@pytest.mark.parametrize('field,value', [
+    ('axial_mawp_bar', 20), ('axial_mawp_bar', 0),
+    ('assessed_axial_capacity_kn', 125), ('assessed_axial_capacity_kn', 0),
+])
+def test_legacy_axial_inputs_are_recorded_without_affecting_sizing(field, value):
+    baseline = evaluate_case(axial_case())
+    result = evaluate_case(axial_case(**{field: value}))
+    assert baseline['status'] == result['status'] == 'CALCULATED'
+    assert result['inputs'][field] == value
+    assert result['results'] == baseline['results']
+    assert result['details']['load_cases'] == baseline['details']['load_cases']
 
 
-@pytest.mark.parametrize('force', [0, 125])
-def test_legacy_force_override_is_preserved(force):
-    ps, fs = capacity(axial_case(assessed_axial_capacity_kn=force))
-    assert ps == pytest.approx(6.889763779527559)
-    assert fs == force * 1000
-
-
-def test_conflicting_pressure_and_force_never_issue_quantities():
+def test_both_legacy_axial_fields_can_coexist_without_affecting_sizing():
+    baseline = evaluate_case(axial_case())
     result = evaluate_case(axial_case(axial_mawp_bar=20, assessed_axial_capacity_kn=0))
-    assert result['status'] == 'ENGINEERING_HOLD'
-    assert 'both' in ' '.join(result['issues']).lower()
-    assert result['results'] == {}
+    assert result['status'] == baseline['status'] == 'CALCULATED', result['issues']
+    assert result['inputs']['axial_mawp_bar'] == 20
+    assert result['inputs']['assessed_axial_capacity_kn'] == 0
+    assert result['results'] == baseline['results']
+    assert result['details']['load_cases'] == baseline['details']['load_cases']
 
 
 @pytest.mark.parametrize('value', [-1, float('nan'), float('inf'), True])
@@ -68,31 +70,34 @@ def test_manual_axial_pressure_does_not_bypass_b31g_scope():
     assert not result['results']
 
 
-@pytest.mark.parametrize('override,status', [(None,'CALCULATED'), (0,'CALCULATED'), (20,'ENGINEERING_HOLD')])
-def test_hotter_load_requires_specific_manual_axial_capacity(override, status):
-    result = evaluate_case(axial_case(axial_mawp_bar=override), loads=[dict(load_id='HOT', temperature_c=45)])
-    assert result['status'] == status, result['issues']
-    if status == 'ENGINEERING_HOLD':
-        assert not result['results']
-        assert 'temperature-specific' in ' '.join(result['issues'])
+def test_legacy_axial_input_does_not_hold_hotter_b31g_load_case():
+    loads = [dict(load_id='HOT', temperature_c=45)]
+    baseline = evaluate_case(axial_case(), loads=loads)
+    result = evaluate_case(axial_case(axial_mawp_bar=20), loads=loads)
+    assert baseline['status'] == result['status'] == 'CALCULATED', result['issues']
+    assert result['details']['load_cases'] == baseline['details']['load_cases']
 
 
-def test_external_hoop_mawp_and_manual_axial_mawp_remain_separate():
-    ps, fs = capacity(axial_case(ffs_method='External assessment', assessed_mawp_bar=30, axial_mawp_bar=20))
-    assert ps == 3
-    assert fs == pytest.approx(328346.446455179)
+def test_external_assessed_hoop_mawp_is_retained_when_legacy_axial_mawp_is_present():
+    result = evaluate_case(axial_case(
+        ffs_method='External assessment', assessed_mawp_bar=30, axial_mawp_bar=20))
+    assert result['status'] == 'CALCULATED', result['issues']
+    assert result['details']['substrate_pressure_mpa'] == 3
+    assert result['inputs']['axial_mawp_bar'] == 20
+    assert result['details']['axial_capacity']['pressure_bar'] is None
 
 
-def test_capacity_trace_reaches_engine_load_cases_and_pdf():
+def test_pdf_and_calculation_trace_mark_legacy_axial_input_as_record_only():
     result = evaluate_case(axial_case(axial_mawp_bar=20))
     assert result['status'] == 'CALCULATED', result['issues']
     detail = result['details']['axial_capacity']
-    assert detail['force_kn'] == pytest.approx(328.346446455179)
-    assert detail['pressure_bar'] == 20
-    assert detail['source'] == 'Manual axial MAWP'
+    assert detail['force_kn'] is None and detail['pressure_bar'] is None
+    assert 'ISO 24817:2017' in detail['source']
     assert result['details']['load_cases'][0]['axial_capacity'] == detail
-    text = '\n'.join(p.extract_text() for p in PdfReader(BytesIO(report_pdf(result))).pages)
-    assert 'Manual axial MAWP' in text and '328.346' in text
+    pdf = PdfReader(BytesIO(report_pdf(result)))
+    text = ' '.join(' '.join(page.extract_text().split()) for page in pdf.pages)
+    assert 'Legacy workbook field (record only)' in text
+    assert 'Axial-capacity MAWP override [bar]: 20' in text
 
 
 def pack(book):
@@ -116,16 +121,21 @@ def axial_workbook():
     return book
 
 
-def test_batch_pressure_override_and_zero_match_single_and_export_basis():
+def test_batch_retains_legacy_axial_fields_and_matches_single_sizing():
     batch = prepare_workbook(pack(axial_workbook()))
     output, results = calculate_batch(batch)
-    assert [r['status'] for r in results] == ['CALCULATED']*3 + ['INPUT_ERROR']
+    assert [r['status'] for r in results] == ['CALCULATED'] * 3 + ['INPUT_ERROR']
     for repair, result in zip(batch.repairs, results):
         assert result == evaluate_case(repair.case)
+    assert [r['results'] for r in results[:3]] == [results[0]['results']] * 3
     book = load_workbook(BytesIO(output))
-    values = {r[0]:r[3] for r in book['Effective Inputs'].iter_rows(min_row=5,values_only=True)
-              if r[2] == 'Axial capacity used [kN]'}
-    assert values == pytest.approx({'AUTO':1131.114726961737,'MANUAL':328.346446455179,'ZERO':0})
+    inputs = list(book['Effective Inputs'].iter_rows(min_row=5, values_only=True))
+    records = {r[0]: (r[3], r[4]) for r in inputs if r[2] == 'Axial-capacity MAWP override [bar]'}
+    assert 'AUTO' not in records
+    assert records['MANUAL'][0] == 20
+    assert records['ZERO'][0] == 0
+    assert all('record only' in records[repair_id][1] for repair_id in ('MANUAL', 'ZERO'))
+    assert all(r[2] != 'Axial capacity used [kN]' for r in inputs)
 
 
 def test_batch_inherits_axial_pressure_and_preserves_explicit_zero():
@@ -145,7 +155,8 @@ def test_batch_inherits_axial_pressure_and_preserves_explicit_zero():
     assert batch.repairs[0].origins['axial_mawp_bar'] == 'Line Defaults · A'
     _, results = calculate_batch(batch)
     assert [r['status'] for r in results] == ['CALCULATED']*3+['INPUT_ERROR']
-    assert results[0]['details']['axial_capacity']['force_kn'] == pytest.approx(410.433058068973)
+    assert results[0]['inputs']['axial_mawp_bar'] == 25
+    assert results[0]['details']['axial_capacity']['force_kn'] is None
 
 
 def legacy_workbook():
@@ -171,7 +182,8 @@ def test_old_v2_workbook_preserves_external_default_and_explicit_force():
     assert all(r['status']=='CALCULATED' for r in results)
     for result in results:
         assert result['details']['substrate_pressure_mpa'] == 2
-        assert result['details']['axial_capacity']['force_kn'] == 0
+        assert result['inputs']['assessed_axial_capacity_kn'] == 0
+        assert result['details']['axial_capacity']['force_kn'] is None
 
 
 def test_new_workbook_with_other_missing_column_is_rejected():
@@ -181,34 +193,17 @@ def test_new_workbook_with_other_missing_column_is_rejected():
     with pytest.raises(WorkbookError): prepare_workbook(pack(book))
 
 
-def test_single_form_override_clear_and_stale_result_removal():
-    app = AppTest.from_file(str(Path(__file__).parents[1]/'app.py'), default_timeout=20)
-    for key,value in axial_case().items(): app.session_state['case_'+key] = value
+def test_single_form_omits_withdrawn_axial_substrate_credit_controls():
+    app = AppTest.from_file(str(Path(__file__).parents[1] / 'app.py'), default_timeout=20)
+    for key, value in axial_case().items():
+        app.session_state['case_' + key] = value
     app.run()
     app.button(key='calculate').click().run()
     assert not app.exception
-    auto = app.session_state['calculation_results'][0]
-    assert auto['details']['axial_capacity']['force_kn'] == pytest.approx(1131.114726961737)
-    app.number_input(key='case_axial_mawp_bar').set_value(20).run()
-    assert 'calculation_results' not in app.session_state
-    app.button(key='calculate').click().run()
-    manual = app.session_state['calculation_results'][0]
-    assert manual['details']['axial_capacity']['force_kn'] == pytest.approx(328.346446455179)
-    assert manual['details']['substrate_pressure_mpa'] == auto['details']['substrate_pressure_mpa']
-    app.number_input(key='case_axial_mawp_bar').set_value(None).run()
-    app.button(key='calculate').click().run()
-    assert app.session_state['calculation_results'][0]['details']['axial_capacity'] == auto['details']['axial_capacity']
-
-
-def test_existing_single_force_input_stays_visible_until_explicitly_cleared():
-    app = AppTest.from_file(str(Path(__file__).parents[1]/'app.py'), default_timeout=20)
-    for key,value in axial_case(assessed_axial_capacity_kn=0).items(): app.session_state['case_'+key] = value
-    app.run()
-    app.button(key='calculate').click().run()
-    assert app.session_state['calculation_results'][0]['details']['axial_capacity']['force_kn'] == 0
-    app.number_input(key='case_assessed_axial_capacity_kn').set_value(None).run()
-    app.button(key='calculate').click().run()
-    assert app.session_state['calculation_results'][0]['details']['axial_capacity']['force_kn'] == pytest.approx(1131.114726961737)
+    assert app.session_state['calculation_results'][0]['status'] == 'CALCULATED'
+    field_keys = {field.key for field in app.number_input}
+    assert 'case_axial_mawp_bar' not in field_keys
+    assert 'case_assessed_axial_capacity_kn' not in field_keys
 
 
 def test_batch_app_upload_calculates_auto_manual_zero_and_invalid():

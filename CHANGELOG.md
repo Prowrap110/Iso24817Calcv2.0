@@ -1,9 +1,17 @@
 # Changelog
 
-## Independent pit steel credit — 17 November 2026
+## Restore ISO 24817:2017 with weighted CalcBatch estimates
 
-- Both v2.0 calculators use the assessed Modified B31G pressure directly for confirmed independent 10 × 10 mm external corrosion estimates on the Substrate sharing route.
-- The calculation record and batch export identify the direct pressure basis.
+- Restore the shared ISO 24817:2017 engine and edition labels in both apps.
+- Keep Estimate Weights input, per-group takeoff and scenario audit in CalcBatch.
+
+## ISO 24817:2017 revision — 17 November 2026
+
+- Use the 2017 sizing, load, bond, sealing and installation checks in both calculators.
+- Record the B31G safe pressure, allowable-wall pressure and method used to select the credited pressure.
+- Use direct Modified B31G pressure for external corrosion estimates with confirmed independent 10 × 10 mm pits and Substrate sharing.
+- Read prior v2 input workbooks and identify the calculation edition in new reports.
+- Keep legacy axial overrides as historical inputs. Use equation (4) for the axial calculation.
 
 ## Putty consumption defaults and overrides — 2026-11-11 (version remains 2.0.0)
 
