@@ -217,3 +217,76 @@ def test_batch_app_calculates_without_ffs_reference():
     assert not app.exception
     assert next(m.value for m in app.metric if m.label=='Calculated') == '3'
     assert next(m.value for m in app.metric if m.label=='Require review') == '1'
+
+
+def independent_estimate(**changes):
+    case = b31g_case(
+        repair_id='ISOLATED-X60', purpose='Estimate', od_mm=355.6, wall_mm=7.92,
+        smys_mpa=415, smts_mpa=520, material_grade='API 5L X60', pressure_bar=92,
+        temperature_c=60, min_temperature_c=60, install_pressure_bar=30,
+        install_temperature_c=80, defect_length_mm=10, defect_width_mm=10,
+        defect_mode='Independent 10x10', independence_confirmed=True,
+        zone_length_mm=400, remaining_wall_mm=2.376, allowable_stress_mpa=None,
+        assessed_axial_capacity_kn=None, strain_basis='LTS',
+    )
+    case.update(changes)
+    return case
+
+
+def test_independent_corrosion_estimate_uses_direct_pressure_for_hoop():
+    case = independent_estimate()
+    result = evaluate_case(case)
+    assert result['status'] == 'ESTIMATE', result['issues']
+    assessed = modified_b31g(case, 10, 2.376)
+    assert result['details']['substrate_pressure_mpa'] == pytest.approx(assessed)
+    assert result['details']['axial_capacity']['pressure_bar'] is None
+    assert result['details']['b31g']['credit_basis'] == 'Direct Modified B31G pressure'
+    structural = result['details']['load_cases'][0]['structural']
+    capped = evaluate_case(independent_estimate(defect_mode='Actual / combined'))
+    capped_structural = capped['details']['load_cases'][0]['structural']
+    assert structural['hoop_mm'] == 0
+    assert capped_structural['hoop_mm'] > 4
+    assert structural['axial_mm'] == pytest.approx(capped_structural['axial_mm'])
+    assert result['results']['installed_plies'] == capped['results']['installed_plies'] == 12
+
+
+def test_zone_span_affects_coverage_but_not_independent_pit_credit():
+    short = evaluate_case(independent_estimate(zone_length_mm=200))
+    long = evaluate_case(independent_estimate(zone_length_mm=400))
+    assert short['details']['b31g'] == long['details']['b31g']
+    assert [r['results']['putty_kg'] for r in (short, long)] == [2, 3]
+    assert short['results']['fabric_area_m2'] < long['results']['fabric_area_m2']
+
+
+@pytest.mark.parametrize('changes', [
+    {'purpose': 'Design', 'strain_basis': 'Default'},
+    {'defect_mode': 'Actual / combined'},
+])
+def test_existing_remaining_wall_limit_is_retained_for_other_cases(changes):
+    case = independent_estimate(**changes)
+    result = evaluate_case(case)
+    capped = 2 * (case['smys_mpa'] * case['original_design_factor']) * case['remaining_wall_mm'] / (case['od_mm'] - case['remaining_wall_mm'])
+    assert result['details']['substrate_pressure_mpa'] == pytest.approx(capped)
+    assert result['details']['b31g']['credit_basis'] == 'Modified B31G with remaining-wall limit'
+
+
+def test_batch_exports_direct_credit_basis_and_matches_the_single_engine():
+    case = independent_estimate()
+    wb = load_workbook(BytesIO(template_workbook()))
+    setup = wb['Batch Setup']
+    for row in range(1, setup.max_row + 1):
+        key = setup.cell(row, 3).value
+        if key in case:
+            setup.cell(row, 2).value = case[key]
+    repairs = wb['Repair Cases']
+    col = next(c.column for c in repairs[3] if c.value == 'repair_id')
+    repairs.cell(5, col, case['repair_id'])
+    buf = BytesIO()
+    wb.save(buf)
+    batch = prepare_workbook(buf.getvalue())
+    export, results = calculate_batch(batch)
+    assert len(results) == 1 and results[0] == evaluate_case(batch.repairs[0].case)
+    trace = load_workbook(BytesIO(export), data_only=True)['Effective Inputs']
+    assert any(row[2:4] == ('Modified B31G credit basis', 'Direct Modified B31G pressure')
+               for row in trace.iter_rows(min_row=5, values_only=True))
+    assert results[0]['results']['installed_plies'] == 12

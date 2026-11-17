@@ -1,58 +1,146 @@
-"""ISO 24817:2026 equations 21–24. MPa, mm, N/mm throughout."""
+"""ISO 24817:2017, §7.5.7 and §7.5.9.2 Type B sealing calculations.
+
+Geometry is in mm, pressure and moduli in MPa, and gamma in N/mm
+(0.001 times the Annex D value in J/m²).
+"""
 import math
 
+
+_SERVICE_FACTORS = {1: (.83, .02088), 2: (.75, .01856), 3: (.666, .01584)}
+
+
+def _positive(value, name):
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value <= 0:
+        raise ValueError(f'{name} must be finite and positive.')
+    return value
+
+
 def leak_factor(repair_class, life):
-    a,b={1:(.87,.02088),2:(.78,.01856),3:(.69,.01584)}[repair_class]
-    return a*10**(-b*life)
+    """Return the default service factor from Formula (16)."""
+    if isinstance(repair_class, bool) or repair_class not in _SERVICE_FACTORS:
+        raise ValueError('Repair class must be 1, 2 or 3.')
+    if _positive(life, 'Repair design lifetime') < 2:
+        raise ValueError('Repair design lifetime must be at least 2 years under ISO 24817:2017 §7.3.')
+    coefficient, exponent = _SERVICE_FACTORS[repair_class]
+    return coefficient * 10 ** (-exponent * (life - 1))
+
+
+def _invert_seal(pressure, factor, gamma, bending, shear, constant):
+    """Invert the pressure relation with denominator a/t³ + b/t + c."""
+    asymptote = factor * math.sqrt(gamma / constant)
+    if pressure >= asymptote:
+        return math.inf, asymptote
+
+    target = gamma * (factor / pressure) ** 2 - constant
+    if target <= 0:
+        return math.inf, asymptote
+
+    bending_thickness = (bending / target) ** (1 / 3)
+    shear_thickness = shear / target
+    if shear == 0:
+        return bending_thickness, asymptote
+
+    # The maximum and sum of the individual thicknesses bracket the root.
+    low = max(bending_thickness, shear_thickness)
+    high = bending_thickness + shear_thickness
+    for _ in range(52):
+        middle = low + (high - low) / 2
+        if (bending_thickness / middle) ** 3 + shear_thickness / middle > 1:
+            low = middle
+        else:
+            high = middle
+    return high, asymptote
+
 
 def solve_seal(case, material, fc, ft2):
-    D,t=case['od_mm'],case['wall_mm']
-    E=math.sqrt(material['ec_mpa']*material['ea_mpa']);nu=material['nu'];G=material['g_mpa'];gamma=material['gamma_n_mm']
-    factor=fc*ft2*leak_factor(case['repair_class'],case['design_life_years']);p=case['pressure_bar']/10
-    if any(not math.isfinite(x) or x<=0 for x in (D,t,E,G,gamma,factor,p)):
-        raise ValueError('Sealing requires finite positive geometry, pressure and material factors.')
-    shape=case['seal_shape'];k=(1-nu*nu)/E
-    def invert(a,b,c,eq):
-        asym=factor*math.sqrt(gamma/c) if c else math.inf
-        if p>=asym: return None,asym
-        target=gamma*(factor/p)**2
-        def den(x): return a/x**3+b/x+c
-        hi=1.
-        while den(hi)>target:
-            hi*=2
-            if hi>1e9: raise ValueError('No practical finite sealing solution.')
-        lo=0.
-        for _ in range(100):
-            mid=(lo+hi)/2
-            if den(mid)>target:lo=mid
-            else:hi=mid
-        return hi,asym
-    if shape=='Circular':
-        d=math.ceil(max(15.,case['effective_diameter_mm'])/5)*5
-        if not math.isfinite(d) or d<15 or D<=60.3 or d>math.sqrt(6*D*t):
-            raise ValueError('Circular effective-opening geometry is outside ISO 9.8.3 limits.')
-        # Optional rectangle dimensions must actually fit within the assessor's circle.
-        a=case.get('effective_axial_mm');b=case.get('effective_circ_mm')
-        if a is not None or b is not None:
-            if a is None or b is None or min(a,b)<=0 or max(a,b)/min(a,b)>=5 or d+1e-9<math.hypot(a,b):
+    """Calculate minimum thickness for the caller's adopted Type B opening.
+
+    Geometry allowance and rounding beyond the 15 mm recommendation are the
+    caller's responsibility. Optional dimensions of a noncircular footprint
+    are checked before use with the enclosing-circle equation.
+    """
+    od = _positive(case.get('od_mm'), 'Pipe outside diameter')
+    wall = _positive(case.get('wall_mm'), 'Substrate wall thickness')
+    pressure = _positive(case.get('pressure_bar'), 'Design pressure') / 10
+    ec = _positive(material.get('ec_mpa'), 'Hoop modulus')
+    ea = _positive(material.get('ea_mpa'), 'Axial modulus')
+    combined_modulus = math.sqrt(ea * ec)
+    shear_modulus = _positive(material.get('g_mpa'), 'Shear modulus')
+    gamma = _positive(material.get('gamma_n_mm'), 'Annex D energy release rate')
+    poisson = material.get('nu')
+    if isinstance(poisson, bool) or not isinstance(poisson, (int, float)) or not -1 < poisson < 1:
+        raise ValueError('Sealing Poisson ratio must be between -1 and 1.')
+
+    repair_class = case.get('repair_class')
+    service_factor = leak_factor(repair_class, case.get('design_life_years'))
+    service_equation = 16
+    degradation = material.get('leak_degradation_factor')
+    if case.get('cyclic') and case['cycles'] > 7000:
+        service_factor = .333 * _positive(fc, 'Cyclic strain derating factor')
+        service_equation = 28
+    elif degradation is not None:
+        service_factor = _SERVICE_FACTORS[repair_class][0] * _positive(
+            degradation, 'Qualified Annex G degradation factor'
+        )
+        service_equation = 17
+    factor = _positive(
+        _positive(ft2, 'Temperature derating factor') * service_factor,
+        'Combined sealing derating factor',
+    )
+
+    shape = case.get('seal_shape')
+    compliance = (1 - poisson ** 2) / combined_modulus
+    if shape == 'Circular':
+        size = max(15, _positive(case.get('effective_diameter_mm'), 'Effective defect diameter'))
+        if size > math.sqrt(6 * od * wall):
+            raise ValueError('Circular effective-opening geometry exceeds the limit of Formula (12).')
+        axial = case.get('effective_axial_mm')
+        circumferential = case.get('effective_circ_mm')
+        if axial is not None or circumferential is not None:
+            axial = _positive(axial, 'Axial footprint')
+            circumferential = _positive(circumferential, 'Circumferential footprint')
+            if max(axial, circumferential) / min(axial, circumferential) >= 5 or size < math.hypot(axial, circumferential):
                 raise ValueError('Circular geometry must enclose the full footprint with aspect ratio below 5.')
-        seal,asym=invert(k*3*d**4/512,3*d*d/(64*G),k*d/math.pi,21);eq=21
-    elif shape=='Circumferential slot':
-        w=math.ceil(max(15.,case['effective_axial_mm'])/5)*5
-        if w<15:raise ValueError('Effective slot width must include the 15 mm minimum footprint.')
-        x,asym=invert(k*w**4/24,3*w*w/(16*G)*(4/5+nu/2)/(1+nu),k*math.pi*w/4,22)
-        y=(p*D/factor)**2/(8*E*gamma)
-        # Both formulae define pressure capacities. The minimum pressure capacity
-        # governs, hence the MAXIMUM of their inverted required thicknesses.
-        if x is None:raise ValueError('No finite circumferential-slot sealing solution under equation (22).')
-        seal,eq=(x,22) if x>=y else (y,23)
-    elif shape=='Axial slot':
-        w=math.ceil(max(15.,case['effective_circ_mm'])/5)*5
-        if w<15:raise ValueError('Effective slot width must include the 15 mm minimum footprint.')
-        if w>=D/2:
-            seal=(p*D/factor)**2/(8*E*gamma);eq=23;asym=math.inf
-        else:
-            seal,asym=invert(k*(w**4/24+w**6/(180*D*D)*(E/(4*G)+2)),0,k*math.pi*w/4,24);eq=24
-    else:raise ValueError('Unknown effective opening shape.')
-    if seal is None or not math.isfinite(seal):raise ValueError('No finite sealing solution: pressure reaches the equation asymptote.')
-    return dict(seal_mm=seal,equation=eq,asymptote_mpa=asym if math.isfinite(asym) else None,f_leak=leak_factor(case['repair_class'],case['design_life_years']),effective_size_mm=d if shape=='Circular' else w)
+        thickness, asymptote = _invert_seal(
+            pressure, factor, gamma, compliance * 3 * size ** 4 / 512,
+            3 * size ** 2 / (64 * shear_modulus), compliance * size / math.pi,
+        )
+        equation = 12
+    elif shape == 'Circumferential slot':
+        size = max(15, _positive(case.get('effective_axial_mm'), 'Effective axial slot width'))
+        thickness, asymptote = _invert_seal(
+            pressure, factor, gamma, compliance * size ** 4 / 24,
+            3 * size ** 2 / (16 * shear_modulus) * (.8 + poisson / 2) / (1 + poisson),
+            compliance * math.pi * size / 4,
+        )
+        full_circumference = (pressure * od / factor) ** 2 / (8 * combined_modulus * gamma)
+        equation = 13
+        # Clause 7.5.7 selects the smaller thickness from (13) and (14).
+        if full_circumference < thickness:
+            thickness, asymptote, equation = full_circumference, None, 14
+    elif shape == 'Axial slot':
+        size = max(15, _positive(case.get('effective_circ_mm'), 'Effective circumferential slot width'))
+        angle = 2 * size / od
+        if angle >= 1:
+            raise ValueError('Axial slot angle must be below one radian for Formula (15).')
+        # Formula (15) as corrected in 2018-01 has D⁴ in both bending terms.
+        bending = compliance * od ** 4 * (
+            angle ** 4 / 384 + (combined_modulus / (4 * shear_modulus) + 2) * angle ** 6 / 11520
+        )
+        thickness, asymptote = _invert_seal(
+            pressure, factor, gamma, bending, 0, compliance * math.pi * od * angle / 8,
+        )
+        equation = 15
+    else:
+        raise ValueError('Unknown effective opening shape.')
+
+    if not math.isfinite(thickness):
+        raise ValueError(f'No finite sealing solution under Formula ({equation}).')
+    return dict(
+        seal_mm=thickness,
+        equation=equation,
+        asymptote_mpa=asymptote,
+        f_leak=service_factor,
+        f_leak_equation=service_equation,
+        effective_size_mm=size,
+    )

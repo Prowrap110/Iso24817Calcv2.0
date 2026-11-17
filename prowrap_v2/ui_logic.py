@@ -2,6 +2,7 @@
 
 from math import isfinite
 
+from . import LEGACY_INPUT_FIELDS
 from .schema import FIELD_DEFINITIONS, default_case
 
 OPENING_FIELDS = (
@@ -78,18 +79,19 @@ def active_fields(case, defects=()):
     if not case.get("external_pressure") and not case.get("reversing_loads"):
         hide("external_assessment_ref")
 
+    hide("sharing_basis", *LEGACY_INPUT_FIELDS)
     if case.get("mechanism") == "Dent no-crack":
-        hide("substrate_route", "sharing_basis", "ffs_method", "ffs_ref",
+        hide("substrate_route", "ffs_method", "ffs_ref",
              "assessed_mawp_bar", "b31g_safety_factor", "smts_mpa")
     elif case.get("substrate_route") == "Full laminate":
         hide(
-            "sharing_basis", "ffs_method", "ffs_ref", "assessed_mawp_bar", "axial_mawp_bar", "assessed_axial_capacity_kn",
-            "qualified_wall_loss_pct", "qualification_ref", "b31g_safety_factor", "original_design_factor",
+            "ffs_method", "ffs_ref", "assessed_mawp_bar",
+            "qualified_wall_loss_pct", "b31g_safety_factor", "original_design_factor",
             "smts_mpa", "allowable_stress_mpa",
         )
+        if case.get("strain_basis") != "LTS":
+            hide("qualification_ref")
     else:
-        if case.get("substrate_route") != "Substrate sharing":
-            hide("sharing_basis")
         if case.get("ffs_method") != "Modified B31G":
             hide("b31g_safety_factor")
         else:

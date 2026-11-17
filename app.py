@@ -3,7 +3,7 @@ import re
 from math import isfinite
 import pandas as pd
 import streamlit as st
-from prowrap_v2 import __version__
+from prowrap_v2 import ISO_STANDARD, __version__
 from prowrap_v2.schema import FIELD_DEFINITIONS, SECTIONS, DEFECT_FIELDS, LOAD_FIELDS, default_case
 from prowrap_v2.ui_logic import (
     OPENING_FIELDS, active_fields, case_for_calculation, uses_measured_defects,
@@ -35,9 +35,12 @@ for key,value in default_case().items():
     st.session_state.setdefault('case_'+key,value)
 st.session_state.setdefault('defect_records',[])
 st.session_state.setdefault('load_records',[])
+if st.session_state.get('result_standard') != ISO_STANDARD:
+    clear_result()
+    st.session_state['result_standard'] = ISO_STANDARD
 
 st.title('PROWRAP Calculator v2.0')
-st.caption('ISO 24817:2026 · Single repair · PRW110+ material basis')
+st.caption(f'{ISO_STANDARD} · Single repair')
 left,right=st.columns([3,2])
 with left: st.write('Enter the repair conditions, review the calculated checks, and download the calculation record.')
 with right:
@@ -46,11 +49,11 @@ with right:
     b.button('Load example',key='example',on_click=lambda:replace_case(example_case()),width='stretch')
 
 HELP={
- 'strain_basis':'LTS uses the owner-selected long-term strain of 0.007 (0.7%), then applies the design-life, temperature, cycling and thermal-strain factors. Default uses the standard strain route.',
+ 'strain_basis':'LTS uses the selected long-term strain input of 0.007 (0.7%) before design derating. Design requires verified ISO 24817:2017 Annex E material data for the selected system and strain.',
  'initial_service_life_years':'Initial service life may be shorter than design life. The design equations use design life.',
  'min_pressure_bar':'Defaults to 0 bar for possible depressurization. Edit to enter a different minimum pressure for the installation/disbond assessment.',
  'pressure_bar':'Entered design pressure. Used for the base calculation when Design pressure is selected below.',
- 'maop_bar':'Maximum Allowable Operating Pressure of the pipeline. Used for the base calculation when MAOP is selected below; separate from impaired-pipe MAWP and the axial-capacity MAWP override.',
+ 'maop_bar':'Maximum Allowable Operating Pressure of the pipeline. Select MAOP as the demand for the base calculation. The assessed impaired-pipe MAWP is entered separately.',
  'pressure_basis':'Select the pressure used for the base repair calculation. Additional named load cases retain their explicitly entered pressure values.',
  'through_wall':'Includes a hole or leak that has already been temporarily sealed.',
  'zone_length_mm':'Full outer-to-outer span to be covered, distinct from individual pit length.',
@@ -61,14 +64,11 @@ HELP={
  'qualification_ref':'Optional qualification reference for the calculation record. The confirmed qualified wall-loss limit and all substrate-credit checks remain required.',
  'ffs_ref':'Optional reference for the assessment record. Leaving this blank does not bypass applicability or capacity checks.',
  'grouping_ref':'Optional inspection or grouping reference for the calculation record. Dimensions and noninteraction confirmation, overall zone span and applicable measured-defect checks remain required.',
- 'axial_mawp_bar':'Optional. Blank calculates axial capacity from the assessed remaining-pipe Ps (Modified B31G by default). Enter the damaged pipe MAWP in bar to override only the pressure used for axial force Fs = π × OD² × MAWP / 40000 [kN]. Hoop Ps remains unchanged; combined-stress thickness can change.',
- 'assessed_axial_capacity_kn':'Existing force override retained. Clear it to use automatic Ps or the manual axial MAWP in bar. Do not enter both overrides.',
  'original_design_factor':'Enter the original pipeline design factor as a decimal, for example 0.72. Automatic B31G safety factor = max(1 / design factor, 1.25).',
  'b31g_safety_factor':'Optional manual override. Leave blank to calculate from the original pipeline design factor. The minimum accepted safety factor is 1.25.',
  'dent_mawp_bar':'Assessed maximum allowable pressure of the dented pipe. This is the remaining-pipe Ps used by the dent substrate stress-limit method; it is separate from the selected pipeline calculation pressure.',
  'dent_ffs_ref':'Reference for the assessment establishing dent MAWP and applicability. Required for measured dents and population estimates.',
- 'cure_basis':'Report schedule uses the ISO 9.3 temperature-factor fallback. A confirmed qualified schedule requires its procedure reference.',
- 'thicker_repair_limit_mm':'Leave blank to apply the normal min(D/6, 25 mm) limit. A larger limit requires its specific supporting test reference.',
+ 'cure_basis':'The §7.5.3 calculation uses the recorded material Tg as representative of the selected cure. A confirmed qualified schedule requires its procedure reference.',
  'putty_kg_per_repair':'Optional kg for one defect / repair zone. Blank uses the automatic allowance; zero means no putty. The amount is multiplied by Number of identical repairs exactly once.',
 }
 
@@ -78,10 +78,11 @@ def widget(key):
     if dent and key == 'original_design_factor':
         kw['help'] = 'Enter the original pipeline design factor, for example 0.72. Dent allowable substrate stress defaults to SMYS × this factor unless a manual allowable-stress override is entered.'
     if dent and key == 'allowable_stress_mpa':
-        kw['help'] = 'Optional manual allowable substrate stress. Leave blank to use SMYS × the original pipeline design factor. Installation stress and the assessed dent MAWP remain part of the calculation.'
-    if dent and key == 'axial_mawp_bar':
-        kw['help'] = 'Optional axial-only MAWP override. Leave blank for Fs = A × assessed dent MAWP. Zero means no axial credit; hoop Ps remains the assessed dent MAWP.'
-    if f['kind']=='text': st.text_input({'ffs_ref':'Fitness-for-service reference (optional)','grouping_ref':'Inspection / grouping assessment reference (optional)','qualification_ref':'Substrate-credit qualification reference (optional)'}.get(key,f['label']),**kw)
+        kw['help'] = 'Optional manual allowable substrate stress. Leave blank to use SMYS × the original pipeline design factor. The installation pressure is checked against the assessed dent MAWP.'
+    if key == 'qualification_ref' and current_case().get('strain_basis') == 'LTS':
+        kw['help'] = 'Identify the Annex E qualification evidence that supports the long-term strain input for the selected system and conditions.'
+        st.text_input('Annex E performance qualification reference', **kw)
+    elif f['kind']=='text': st.text_input({'ffs_ref':'Fitness-for-service reference (optional)','grouping_ref':'Inspection / grouping assessment reference (optional)','qualification_ref':'Substrate-credit qualification reference (optional)'}.get(key,f['label']),**kw)
     elif key=='pressure_basis': st.radio(f['label'],f['choices'],horizontal=True,**kw)
     elif f['kind']=='select': st.selectbox(f['label'],f['choices'],**kw)
     elif f['kind']=='bool': st.checkbox(f['label'],**kw)
@@ -111,10 +112,9 @@ for section, title in SECTIONS.items():
         case = current_case()
         dent = case['mechanism'] == 'Dent no-crack'
         if section == 7 and dent:
-            st.info('Assessed dent capacity · Substrate stress limit · ISO 24817:2026, 9.10 / 9.7.2')
+            st.info('Assessed dent capacity · Substrate stress limit · ISO 24817:2017, 7.5.10 / 7.5.4.1')
             st.caption('The assessed dent MAWP in Defect information supplies the remaining-pipe capacity Ps. Enter the original design factor below or a manual allowable-stress override.')
         if section == 7 and (dent or case['substrate_route'] != 'Full laminate'):
-            st.caption('Axial capacity defaults to Fs = A × Ps. Leave the axial MAWP override blank to use the assessed Ps; enter bar to override the axial basis only. Explicit zero means no axial credit.')
             st.caption('Qualified wall-loss limit defaults to 81% for PRW110 and PRW110+. Edit the percentage below for a manual override.')
         visible = active_fields(case)
         if section == 4:
@@ -127,7 +127,11 @@ for section, title in SECTIONS.items():
                 st.caption(f"Calculation pressure: {pressure['calculation_pressure_bar']:g} bar · {pressure['basis']}")
             except ValueError as ex:st.caption(str(ex))
         cols = st.columns(2)
-        keys = [key for key in visible if FIELD_DEFINITIONS[key]["section"] == section and key not in OPENING_FIELDS and key != 'assessed_axial_capacity_kn']
+        keys = [key for key in visible if FIELD_DEFINITIONS[key]["section"] == section and key not in OPENING_FIELDS]
+        if case['strain_basis'] == 'LTS' and section == 2:
+            keys.append('qualification_ref')
+        if case['strain_basis'] == 'LTS' and section == 7:
+            keys.remove('qualification_ref')
         if section == 4:keys=['min_pressure_bar','install_pressure_bar','temperature_c','min_temperature_c','install_temperature_c']
         if dent and section == 3:keys = [key for key in keys if key != 'allowable_stress_mpa']
         if dent and section == 7:
@@ -138,9 +142,6 @@ for section, title in SECTIONS.items():
         for index, key in enumerate(keys):
             with cols[index % 2]:
                 widget(key)
-        if section == 7 and 'assessed_axial_capacity_kn' in visible:
-            with st.expander('Existing axial-force override (optional)', expanded=case.get('assessed_axial_capacity_kn') is not None):
-                widget('assessed_axial_capacity_kn')
         case = current_case()
         if section == 7 and dent:
             allowable = case.get('allowable_stress_mpa')
@@ -155,7 +156,7 @@ for section, title in SECTIONS.items():
             else:
                 st.caption('Enter positive SMYS and a design factor greater than 0 and no greater than 1, or a positive manual allowable stress.')
         if section == 7 and not dent and case['substrate_route'] != 'Full laminate' and case['ffs_method'] == 'Modified B31G':
-            st.caption('Automatic safety factor = max(1 ÷ original pipeline design factor, 1.25). Leave the manual override blank to use automatic calculation.')
+            st.caption('Automatic safety factor = max(1 ÷ original pipeline design factor, 1.25). External corrosion estimates with confirmed independent 10 × 10 mm pits and Substrate sharing use Modified B31G directly. Other routes apply the remaining-wall pressure limit.')
             try:
                 selected = b31g_factor_details(case)
                 st.metric('B31G safety factor used', f"{selected['safety_factor']:.4f}")
@@ -165,7 +166,7 @@ for section, title in SECTIONS.items():
         if section == 2:
             mat = get_material(case["product"])
             st.caption(f"{case['product']} · {mat['ply_mm']:.2f} mm/ply · Hoop modulus {mat['ec_mpa']:,.0f} MPa · Axial modulus {mat['ea_mpa']:,.0f} MPa · Tg reference {mat['tg_c']:.2f}°C")
-            if case['strain_basis']=='LTS':st.caption(f"Long-term strain input: {mat['lts']:.3f} ({mat['lts']*100:g}%) before design derating")
+            if case['strain_basis']=='LTS':st.caption(f"Long-term strain input: {mat['lts']:.3f} ({mat['lts']*100:g}%) before design derating. Design requires verified Annex E material data.")
         if section == 5:
             independent = case["mechanism"] == "Corrosion" and case["defect_location"] == "External" and case["defect_mode"] != "Actual / combined"
             if independent:
@@ -191,7 +192,7 @@ for section, title in SECTIONS.items():
                 st.info("Population estimate: 60% at 600 × 250 mm; 40% at 300 × 500 mm; depth 6% of OD. Select Estimate and enter the total count in section 9. The no-crack inspection, dent assessment reference and assessed dent MAWP are still required.")
             opening_fields = [key for key in active_fields(case, st.session_state["defect_records"]) if key in OPENING_FIELDS]
             if opening_fields:
-                st.caption("Type B includes structural hoop and axial checks plus the effective opening sealing calculation.")
+                st.caption("Type B includes structural hoop and axial checks plus the effective opening sealing calculation. Design requires verified Annex D sealing and Annex F impact qualification data for the repair system.")
                 cols = st.columns(2)
                 for index, key in enumerate(opening_fields):
                     with cols[index % 2]:
@@ -253,11 +254,14 @@ if st.session_state.get('calculation_results'):
             st.caption(f"Putty: {vals['putty_per_repair_kg']:.3f} kg per defect × {vals.get('quantity',1):g} identical repairs = {vals['putty_kg']:.3f} kg total.")
             st.write(f"Total fabric bands: **{vals['count_500']} × 500 mm** and **{vals['count_300']} × 300 mm**. Total epoxy: **{vals['total_epoxy_kg']:.2f} kg**. Quantity: **{vals.get('quantity',1):g}**.")
             if result['inputs']['substrate_route'] != 'Full laminate':
-                axial=result['details']['axial_capacity']
-                a,b=st.columns(2)
-                a.metric('Remaining-pipe Ps', f"{result['details']['substrate_pressure_mpa']*10:.3f} bar")
-                b.metric('Axial capacity used', f"{axial['force_kn']:.3f} kN")
-                st.caption(axial['source'] + (f" · Axial pressure basis {axial['pressure_bar']:.3f} bar" if axial['pressure_bar'] is not None else ''))
+                st.metric('Remaining-pipe Ps', f"{result['details']['substrate_pressure_mpa']*10:.3f} bar")
+                b31g = result['details'].get('b31g')
+                if b31g:
+                    st.caption(
+                        f"Modified B31G {b31g['uncapped_pressure_bar']:.3f} bar · "
+                        f"Remaining-wall allowable pressure {b31g['allowable_wall_pressure_bar']:.3f} bar · "
+                        f"Credit basis: {b31g['credit_basis']}"
+                    )
         else: st.error(status+' · '+ ' '.join(result.get('issues',[])))
         if result.get('checks'):
             with st.expander('Check results',expanded=not valid):st.dataframe(pd.DataFrame(result['checks']),hide_index=True,width='stretch')
@@ -273,4 +277,4 @@ if st.session_state.get('calculation_results'):
             st.subheader('Population material totals')
             st.write({label:round(sum(r['results'][key] for r in eligible),3) for label,key in [('Fabric [m²]','fabric_area_m2'),('Laminate epoxy [kg]','laminate_epoxy_kg'),('Putty [kg]','putty_kg'),('Total epoxy [kg]','total_epoxy_kg')]})
         else:st.warning('Population totals are unavailable until all groups have valid calculation results.')
-st.caption(f'PROWRAP · Version {__version__} · ISO 24817:2026 calculation record for engineering review')
+st.caption(f'PROWRAP · Version {__version__} · {ISO_STANDARD} calculation record for engineering review')

@@ -5,7 +5,7 @@ from .schema import default_case, FIELD_DEFINITIONS, LOAD_FIELDS
 from .materials import get_material
 from .physics import calculate_structural, bond_stress, component_factor, tee_pressure_limit
 from .sealing import solve_seal
-from .assessment import substrate_capacity, b31g_factor_details, axial_capacity_details, dent_capacity_details
+from .assessment import b31g_factor_details, b31g_pressure_details, dent_capacity_details, substrate_capacity
 from .procurement import quantities
 from .pressure import pressure_basis_details
 
@@ -134,13 +134,13 @@ def evaluate_case(case,defects=None,loads=None):
             _required(c,'dent_depth_mm')
             if not c['no_crack_confirmed'] or not c['inspection_ref'] or not c['dent_ffs_ref'] or c['dent_mawp_bar'] is None:raise Hold('Dent assessment requires no-crack inspection and a referenced dent FFS MAWP, including explicit assumptions for population estimates.')
             if c['dent_complex'] or c['component']!='Straight':raise Hold('Dent with a fitting, weld, gouge or restraint requires a dedicated damage assessment.')
-            if c['cyclic']:raise Hold('Cyclic dent life extension requires a dedicated Annex H fatigue assessment outside this evaluator.')
+            if c['cyclic']:raise Hold('Cyclic dent life extension requires a dedicated fatigue assessment.')
             if c['through_wall'] or c['prevent_containment'] or c['remaining_wall_mm']!=c['wall_mm']:
                 raise Hold('The assessed plain-dent route requires no wall loss or through-wall/future-containment repair; combined damage needs a separate assessment.')
             try:r['details']['dent_capacity']=dent_capacity_details(c)
             except ValueError as ex:raise Hold(str(ex)) from ex
-            # §9.10 directs dent sizing to §9.7. This evaluator selects the
-            # stress-limit method, using actual assessed dent capacity, not B31G.
+            # Clause 7.5.10 directs dent sizing to clause 7.5.4.
+            # Use the stress-limit route with independently assessed dent pressure.
             c.update(substrate_route='Substrate stress limit', ffs_method='External assessment',
                      assessed_mawp_bar=c['dent_mawp_bar'],
                      allowable_stress_mpa=r['details']['dent_capacity']['allowable_stress_mpa'])
@@ -158,7 +158,9 @@ def evaluate_case(case,defects=None,loads=None):
             if c['seal_shape']=='Circular':_required(c,'effective_diameter_mm')
             else:_required(c,'effective_axial_mm','effective_circ_mm')
             # The rounded effective opening governs both sealing and full-thickness axial coverage.
-            for key in ('effective_diameter_mm','effective_axial_mm','effective_circ_mm'):
+            geometry_keys = ('effective_diameter_mm',) if c['seal_shape']=='Circular' else (
+                'effective_axial_mm','effective_circ_mm')
+            for key in geometry_keys:
                 if c.get(key) is not None:
                     if c[key]<=0:raise InputError('Effective opening dimensions must be positive.')
                     c[key]=math.ceil(max(15.,c[key])/5)*5
@@ -168,15 +170,28 @@ def evaluate_case(case,defects=None,loads=None):
             if c['through_wall'] or c['mechanism']=='Leak':
                 if c['install_pressure_bar']>0 and not c['stopgap_ref']:raise Hold('Live through-wall application requires a leak-stopping procedure reference.')
             if c['substrate_route']!='Full laminate':raise Hold('Type B uses full laminate hoop and axial structural checks; substrate credit is unavailable.')
-        try:ps,fs=substrate_capacity(c,gs,eol)
-        except ValueError as ex:raise Hold(str(ex)) from ex
+        try:
+            ps,_=substrate_capacity(c,gs,eol)
+        except ValueError as ex:
+            raise Hold(str(ex)) from ex
         if c['substrate_route']!='Full laminate' and c['ffs_method']=='Modified B31G':
-            r['details']['b31g']=b31g_factor_details(c)
-        material=get_material(c['product']);r['details']['substrate_pressure_mpa']=ps
+            r['details']['b31g']=dict(b31g_factor_details(c), **b31g_pressure_details(c,gs,eol))
+            if c['install_pressure_bar']>r['details']['b31g']['uncapped_pressure_bar']:
+                raise Hold('Installation pressure exceeds the Modified B31G safe pressure.')
+        elif c['substrate_route']!='Full laminate' and c['install_pressure_bar']>ps*10:
+            raise Hold('Installation pressure exceeds the assessed pipe capacity.')
+        material=get_material(c['product'])
+        r['details']['substrate_pressure_mpa']=ps
         if c['strain_basis']=='LTS':
-            r['details']['long_term_strain_input']=dict(value=material['lts'], percent=material['lts']*100,
-                                                       basis='Owner-selected long-term strain before design derating')
-        r['details']['axial_capacity']=axial_capacity_details(c,ps)
+            r['details']['long_term_strain_input']=dict(
+                value=material['lts'], percent=material['lts']*100,
+                basis='Owner-selected Annex E estimate pending verification')
+            if c['purpose']=='Design' and not material.get('annex_e_verified'):
+                raise Hold('This material profile has no verified Annex E lower-confidence strain. Use Table 9 or supply the qualified Annex E material data.')
+        if c['purpose']=='Design' and repair_type=='B' and not material.get('type_b_qualified'):
+            raise Hold('This material profile needs verified Annex D and Annex F evidence for a Type B design.')
+        r['details']['axial_capacity']=dict(force_kn=None, pressure_bar=None,
+            source='No separate axial substrate capacity input in ISO 24817:2017 sizing')
         effective=[('Base',deepcopy(c))];ids=set()
         for i,load in enumerate(loads or []):
             unsupported=set(load).difference(set(LOAD_FIELDS)|{'other_thickness_mm'})
@@ -189,25 +204,23 @@ def evaluate_case(case,defects=None,loads=None):
             if any(load.get(k) not in (None,'',0) for k in ('axial_kn','shear_kn','bending_knm','torsion_knm')):lc['load_basis']='Additional loads'
             _validate(lc)
             if c['mechanism']=='Dent no-crack':
-                if lc['cyclic']:raise Hold('A cyclic dent load case requires a dedicated Annex H fatigue assessment.')
+                if lc['cyclic']:raise Hold('A cyclic dent load case requires a dedicated dent fatigue assessment.')
             if c['substrate_route']!='Full laminate' and c['ffs_method']=='External assessment' and lc['temperature_c']>c['temperature_c']:
                 raise Hold('The additional hotter load case needs a temperature-specific substrate capacity assessment.')
-            if c['substrate_route']!='Full laminate' and lc['temperature_c']>c['temperature_c'] and any((c.get(k) or 0)>0 for k in ('axial_mawp_bar','assessed_axial_capacity_kn')):
-                raise Hold('The additional hotter load case needs a temperature-specific manual axial capacity assessment.')
             effective.append((ident,lc))
         entries=[]
         for load_index,(ident,lc) in enumerate(effective):
-            try: load_ps,load_fs=substrate_capacity(lc,gs,eol)
+            try: load_ps,_=substrate_capacity(lc,gs,eol)
             except ValueError as ex:raise Hold(str(ex)) from ex
-            st=calculate_structural(lc,material,repair_type,ps_mpa=load_ps,fs_n=load_fs)
+            st=calculate_structural(lc,material,repair_type,ps_mpa=load_ps)
             seal=solve_seal(lc,material,st['fc'],st['fT2']) if repair_type=='B' else dict(seal_mm=0,equation=None)
             d=lc.get('effective_diameter_mm')
-            overlap=max(50,4*d) if seal['equation']==21 and d<.5*math.sqrt(lc['od_mm']*lc['wall_mm']) else max(50,2*math.sqrt(lc['od_mm']*lc['wall_mm']))
+            overlap=max(50,4*d) if seal['equation']==12 and d<.5*math.sqrt(lc['od_mm']*lc['wall_mm']) else max(50,2*math.sqrt(lc['od_mm']*lc['wall_mm']))
             transfer=3*material['ea_mpa']*st['epsilon_a']*st['axial_mm']/material['lap_shear_mpa']
             overlap=max(overlap,transfer*(1+1e-9))
             entry=dict(load_id=ident,structural=st,sealing=seal,overlap_mm=overlap,transfer_mm=transfer,other_thickness_mm=lc.get('other_thickness_mm') or 0)
             entry['substrate_pressure_mpa']=load_ps
-            entry['axial_capacity']=axial_capacity_details(lc,load_ps)
+            entry['axial_capacity']=r['details']['axial_capacity']
             entry['pressure_basis']=dict(r['details']['pressure_basis'],calculation_pressure_bar=lc['pressure_bar'])
             if load_index>0 and any(load.get('load_id')==ident and load.get('pressure_bar') not in (None,'') for load in (loads or [])):
                 entry['pressure_basis']['basis']='Load-case pressure override'
@@ -225,18 +238,21 @@ def evaluate_case(case,defects=None,loads=None):
         plies=max(2,material['min_typeb_plies'] if repair_type=='B' else 2,math.ceil(max(2,required)/material['ply_mm']))
         installed=plies*material['ply_mm']
         r['details'].update(load_cases=entries,controlling_load_id=control['load_id'],required_thickness_mm=required,candidate_installed_mm=installed,component_factor=factor,extent_factor=extent)
-        def check(name,value,limit,clause):
-            passed=math.isfinite(value) and value<=limit+1e-9
+        def check(name,value,limit,clause,strict=False):
+            passed=math.isfinite(value) and (value<limit if strict else value<=limit)
             r['checks'].append(dict(name=name,passed=passed,value=value,limit=limit,clause=clause))
-            if not passed:r['issues'].append(f'{name} failed ({value:.6g} > {limit:.6g}).')
-        cap=min(c['od_mm']/6,25)
-        if c.get('thicker_repair_limit_mm') is not None:
-            if not c['thicker_repair_ref']:raise Hold('A thicker-repair limit requires its supporting test reference.')
-            cap=max(cap,c['thicker_repair_limit_mm'])
-        check('Installed thickness',installed,cap,'9.14.2 / (36)')
+            if not passed:
+                operator='≥' if strict else '>'
+                r['issues'].append(f'{name} failed ({value:.6g} {operator} {limit:.6g}).')
+        check('Installed thickness',installed,c['od_mm']/12,'7.2 Table 2',strict=True)
         for (ident,lc),entry in zip(effective,entries):
-            check('Bond stress — '+ident,bond_stress(lc,material,installed),material['lap_shear_mpa']/3,'9.14.4 / (38)–(41)')
-            if c['component']=='Tee':check('Tee pressure — '+ident,entry['structural']['peq_mpa'],tee_pressure_limit(lc,material,entry['structural']['epsilon_c'],ps_mpa=ps,installed_mm=installed),'9.14.3 / (37)')
+            if lc['min_pressure_bar']<lc['install_pressure_bar']:
+                check('Bond stress — '+ident,bond_stress(lc,material,installed),
+                      material['lap_shear_mpa']/3,'7.5.9.3 / (29)',strict=True)
+            if lc['component']=='Tee':
+                check('Tee pressure — '+ident,entry['structural']['peq_mpa'],
+                      tee_pressure_limit(lc,material,entry['structural']['epsilon_c'],
+                                         installed_mm=installed),'7.5.13.1 / (33)')
         if r['issues']:r['status']='NO_VALID_DESIGN';return r
         zone=c.get('zone_length_mm') or c['defect_length_mm'];taper=5*installed
         if c['landing_mode']=='Restricted':

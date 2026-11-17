@@ -7,6 +7,7 @@ import streamlit as st
 from prowrap_v2.batch import (
     MAX_FILE_MB, STANDARD, WorkbookError, calculate_batch, prepare_workbook, template_workbook,
 )
+from prowrap_v2 import LEGACY_INPUT_FIELDS
 from prowrap_v2.schema import FIELD_DEFINITIONS
 from prowrap_v2.assessment import b31g_factor_details
 from prowrap_v2.pressure import pressure_basis_details
@@ -19,7 +20,8 @@ PREVIEW_FIELDS = (
 
 
 @st.cache_data(show_spinner=False)
-def _template():
+def _template(standard):
+    # The edition participates in the cache key for template downloads.
     return template_workbook()
 
 
@@ -32,7 +34,7 @@ def _preview(batch):
             return {'Calculation pressure [bar]': None, 'Pressure basis': str(error)}
 
     def factor_columns(case):
-        if case['substrate_route'] == 'Full laminate' or case['ffs_method'] != 'Modified B31G':
+        if case['mechanism'] == 'Dent no-crack' or case['substrate_route'] == 'Full laminate' or case['ffs_method'] != 'Modified B31G':
             return {'B31G safety factor used': None, 'B31G factor basis': 'Not applicable'}
         try:
             selected = b31g_factor_details(case)
@@ -61,7 +63,14 @@ def _preview(batch):
         repair = batch.repairs[index]
         st.dataframe(
             [
-                {"Input": FIELD_DEFINITIONS[key]["label"], "Value": str(value), "Origin": repair.origins[key]}
+                {
+                    "Input": FIELD_DEFINITIONS[key]["label"],
+                    "Value": str(value),
+                    "Origin": (
+                        f"Legacy workbook field, record only · {repair.origins[key]}"
+                        if key in LEGACY_INPUT_FIELDS else repair.origins[key]
+                    ),
+                }
                 for key, value in repair.case.items() if key in repair.origins
             ],
             hide_index=True, width="stretch",
@@ -97,7 +106,7 @@ def main():
     with template_col:
         st.subheader("1. Get the template")
         st.download_button(
-            "Download Excel template", data=_template(), mime=MIME_XLSX,
+            "Download Excel template", data=_template(STANDARD), mime=MIME_XLSX,
             file_name="PROWRAP_CalcBatch_v2_Template.xlsx", on_click="ignore",
         )
         st.caption("Enter shared values on Batch Setup or Line Defaults. Add one row per repair zone.")
@@ -107,10 +116,11 @@ def main():
         st.caption("The results workbook includes blank pricing cells for fabric per m², epoxy per litre and a sales multiplier, with automatic sale totals.")
         st.caption('Choose Design pressure (default) or MAOP for calculations. Minimum design pressure defaults to 0 bar and can be overridden. Blank cells inherit line/batch settings; explicitly entered load-case pressures still apply.')
         st.caption('Fitness-for-service reference is optional. Include an available reference for the calculation record.')
-        st.caption('Substrate-credit qualification reference is optional. Qualified wall-loss limit defaults to 81% for PRW110 and PRW110+. Enter a percentage in Batch Setup, Line Defaults or repair inputs to override; end-of-life wall loss must remain strictly below the selected limit.')
+        st.caption('LTS Design requires verified Annex E material data. Type B Design requires verified Annex D sealing and Annex F impact qualification. The qualified wall-loss limit defaults to 81% for PRW110 and PRW110+. Enter a percentage in Batch Setup, Line Defaults or repair inputs to override; end-of-life wall loss must remain strictly below the selected limit.')
         st.caption('Inspection / grouping assessment reference is optional. Independent defects still require confirmed dimensions/noninteraction, the overall zone span and applicable spacing checks.')
         st.caption('B31G: automatic safety factor = max(1 ÷ original pipeline design factor, 1.25). Enter a B31G assessment safety factor only for a manual override. Blank repair cells inherit any line or batch override; clear those too to use automatic calculation.')
-        st.caption('Axial capacity defaults to A × assessed Ps (Modified B31G by default). Enter Axial-capacity MAWP override [bar] for the axial basis only. Clear any legacy kN override before using it; explicit zero means no axial credit.')
+        st.caption('External corrosion estimates with confirmed independent 10 × 10 mm pits and Substrate sharing use Modified B31G pressure directly.')
+        st.caption('Earlier v2.0 templates are accepted and recalculated using ISO 24817:2017. Legacy axial-capacity and thickness overrides are kept in the input history.')
     with upload_col:
         st.subheader("2. Upload your workbook")
         uploaded = st.file_uploader(
@@ -124,14 +134,14 @@ def main():
     content = uploaded.getvalue()
     digest = sha256(content).hexdigest()
     session = st.session_state.get("batch_upload")
-    if session is None or session["digest"] != digest:
+    if session is None or session.get("key") != (STANDARD, digest):
         try:
             batch = prepare_workbook(content)
         except WorkbookError as error:
             st.session_state.pop("batch_upload", None)
             st.error(str(error))
             return
-        session = {"digest": digest, "batch": batch, "output": None}
+        session = {"key": (STANDARD, digest), "batch": batch, "output": None}
         st.session_state["batch_upload"] = session
 
     batch = session["batch"]
@@ -173,10 +183,7 @@ def main():
         st.dataframe(pressure_rows, hide_index=True, width='stretch')
     capacity_rows = [
         {"Repair ID": record['repair_id'],
-         "Remaining-pipe Ps [bar]": record['details']['substrate_pressure_mpa']*10,
-         "Axial capacity used [kN]": record['details']['axial_capacity']['force_kn'],
-         "Axial pressure basis [bar]": record['details']['axial_capacity']['pressure_bar'],
-         "Axial capacity basis": record['details']['axial_capacity']['source']}
+         "Remaining-pipe Ps [bar]": record['details']['substrate_pressure_mpa'] * 10}
         for record in results if record['status'] in ('CALCULATED','ESTIMATE')
         and record['inputs']['substrate_route'] != 'Full laminate'
     ]

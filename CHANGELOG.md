@@ -1,5 +1,13 @@
 # Changelog
 
+## ISO 24817:2017 revision — 17 November 2026
+
+- Use the 2017 sizing, load, bond, sealing and installation checks in both calculators.
+- Record the B31G safe pressure, allowable-wall pressure and method used to select the credited pressure.
+- Use direct Modified B31G pressure for external corrosion estimates with confirmed independent 10 × 10 mm pits and Substrate sharing.
+- Read prior v2 input workbooks and identify the calculation edition in new reports.
+- Keep legacy axial overrides as historical inputs. Use equation (4) for the axial calculation.
+
 ## Putty consumption defaults and overrides — 2026-11-11 (version remains 2.0.0)
 
 - Use 2 kg per corrosion repair zone up to 200 mm, 3 kg up to 400 mm, then add 1 kg per further started 200 mm.
