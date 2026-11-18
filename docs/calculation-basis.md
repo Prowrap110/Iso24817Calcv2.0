@@ -30,7 +30,7 @@ PRW110 inherits the PRW110+ shared mechanical profile by the owner's explicit di
 
 ## Thermal basis
 
-The calculator treats the recorded product Tg as representative of the selected field cure for §7.5.3 temperature limits and factors. It uses Tg − 20°C except for Class 3 Type B with a design life over two years, which uses Tg − 30°C. The profile assumes a 20°C qualification and ambient test temperature and applies the maximum-temperature derating with the adverse thermal mismatch at the entered hot and cold service conditions.
+The calculator treats the recorded product Tg as representative of the selected field cure for §7.5.3 temperature limits and factors. It uses Tg − 20°C except for Class 3 Type B with a design life over two years, which uses Tg − 30°C. The profile assumes a 20°C qualification and ambient test temperature and applies the maximum-temperature derating with the largest absolute thermal mismatch at the entered hot and cold service conditions. Equation (10) always deducts that mismatch from the allowable hoop and axial strains, including when installation is hotter than service. The separate signed interface-stress calculation in Equation (29) is unchanged.
 
 The PRW110 value comes from DSC second-heating data, while the PRW110+ value uses DMA storage-modulus onset. Confirm that the reported Tg is applicable to the intended cure schedule and resulting laminate before issuing a repair design. An entered reference for a separately qualified cure schedule records the procedure and the calculation continues to use the profile Tg.
 
