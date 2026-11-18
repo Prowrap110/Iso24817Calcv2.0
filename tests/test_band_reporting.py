@@ -117,3 +117,12 @@ def test_batch_app_discards_previous_reporting_schema_export():
     app.run()
     assert not app.exception
     assert [node.label for node in app.get('download_button')] == ['Download Excel template']
+
+
+@pytest.mark.parametrize('entrypoint', ['app.py', 'batch_app.py'])
+def test_entrypoints_accept_package_initializer_cached_before_reporting_release(monkeypatch, entrypoint):
+    import prowrap_v2
+    # Streamlit can retain the already imported package namespace on hot reload.
+    monkeypatch.delattr(prowrap_v2, 'PROCUREMENT_REPORT_VERSION', raising=False)
+    app = AppTest.from_file(str(Path(__file__).parents[1] / entrypoint), default_timeout=20).run()
+    assert not app.exception

@@ -7,11 +7,11 @@ import streamlit as st
 from prowrap_v2.batch import (
     MAX_FILE_MB, STANDARD, WorkbookError, calculate_batch, prepare_workbook, template_workbook,
 )
-from prowrap_v2 import LEGACY_INPUT_FIELDS, PROCUREMENT_REPORT_VERSION
+from prowrap_v2 import LEGACY_INPUT_FIELDS
 from prowrap_v2.schema import FIELD_DEFINITIONS
 from prowrap_v2.assessment import b31g_factor_details
 from prowrap_v2.pressure import pressure_basis_details
-from prowrap_v2.weighted import FABRIC_HEADERS, takeoff
+from prowrap_v2.weighted import FABRIC_HEADERS, PROCUREMENT_REPORT_VERSION, takeoff
 
 MIME_XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 PREVIEW_FIELDS = (

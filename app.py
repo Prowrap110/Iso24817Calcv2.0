@@ -3,7 +3,8 @@ import re
 from math import isfinite
 import pandas as pd
 import streamlit as st
-from prowrap_v2 import ISO_STANDARD, PROCUREMENT_REPORT_VERSION, __version__
+from prowrap_v2 import ISO_STANDARD, __version__
+from prowrap_v2.weighted import PROCUREMENT_REPORT_VERSION
 from prowrap_v2.schema import FIELD_DEFINITIONS, SECTIONS, DEFECT_FIELDS, LOAD_FIELDS, default_case
 from prowrap_v2.ui_logic import (
     OPENING_FIELDS, active_fields, case_for_calculation, uses_measured_defects,
