@@ -2,4 +2,4 @@ streamlit==1.61.1
 pandas==3.0.5
 openpyxl==3.1.5
 fpdf==1.7.2
-# Reporting release 2026-11-18: all-ply bands and fabric metres by width.
+# Reporting release 2026-11-18 v2: primary Results uses weighted tender quantities.

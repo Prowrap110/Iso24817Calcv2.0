@@ -854,7 +854,8 @@ def calculate_batch(batch: PreparedBatch) -> tuple[bytes, list[dict]]:
         _write_takeoff(workbook, batch.weights, results)
     summary = _output_table(
         workbook, "Unit Scenario Summary" if batch.weights else "Summary and Cost",
-        f"{STANDARD}  |  Calculated and indicative estimate material totals are shown separately.",
+        (f"{STANDARD}. Unit-case diagnostics only, without population weights. Use Results or Tender Takeoff for tender quantities."
+         if batch.weights else f"{STANDARD}  |  Calculated and indicative estimate material totals are shown separately."),
         ("Status", "Result rows", "Repair quantity", "Fabric [m²]", "Laminate epoxy [kg]",
          "Putty [kg]", "Epoxy including putty [kg]", "Material cost", "Currency"),
         _summary(results, {} if batch.weights else batch.rates, warnings), (26, 14, 17, 17, 19, 15, 23, 18, 14),
@@ -862,17 +863,36 @@ def calculate_batch(batch: PreparedBatch) -> tuple[bytes, list[dict]]:
     if not batch.weights:
         add_commercial_summary(summary, results, batch.rates)
     headers = ("Repair ID", "Source Repair ID", "Source row", "Status", "Asset / line", "Type", "Governing load") + tuple(RESULT_FIELDS.values())
+
+    def result_rows(weighted=False):
+        scalable = {'count_500', 'count_300', 'fabric_area_m2', 'laminate_epoxy_kg',
+                    'putty_kg', 'total_epoxy_kg', 'quantity',
+                    'fabric_length_500_m', 'fabric_length_300_m'}
+        for repair, case, result in calculations:
+            factor = batch.weights[result['repair_id'].casefold()].equivalent_repairs if weighted else 1
+            values = []
+            for key in RESULT_FIELDS:
+                value = result['results'].get(key) if result['status'] in VALID_STATUSES else None
+                values.append(value * factor if value is not None and key in scalable else value)
+            yield (result['repair_id'], repair.case['repair_id'], repair.source.number,
+                   result['status'], case['asset_id'], result['details'].get('repair_type'),
+                   result['details'].get('controlling_load_id'), *values)
+
+    result_headers = tuple('Equivalent repairs' if name == 'Identical repairs' else name for name in headers) if batch.weights else headers
     _output_table(
         workbook, "Results",
-        f"{STANDARD} engineering calculation. Repair dimensions apply to one repair. Band counts include all plies and quantity. Width metres reconcile to fabric area; weighted populations are on Tender Takeoff.",
-        headers,
-        (
-            (result["repair_id"], repair.case["repair_id"], repair.source.number, result["status"],
-             case["asset_id"], result["details"].get("repair_type"), result["details"].get("controlling_load_id"),
-             *(result["results"].get(key) if result["status"] in VALID_STATUSES else None for key in RESULT_FIELDS))
-            for repair, case, result in calculations
-        ), (24, 24, 12, 24, 23, 12, 19) + (20,) * len(RESULT_FIELDS),
+        (f"{STANDARD}. Weighted tender material and band quantities. Dimensions and plies remain per repair. Equivalent repairs include scenario shares. Unit Results keeps the unweighted calculations."
+         if batch.weights else f"{STANDARD} engineering calculation. Repair dimensions apply to one repair. Band counts include all plies and quantity. Width metres reconcile to fabric area."),
+        result_headers, result_rows(weighted=bool(batch.weights)),
+        (24, 24, 12, 24, 23, 12, 19) + (20,) * len(RESULT_FIELDS),
     )
+    if batch.weights:
+        _output_table(
+            workbook, 'Unit Results',
+            f'{STANDARD}. One unweighted repair per scenario for calculation checking. These rows do not total the tender population. Use Results or Tender Takeoff for quantities.',
+            headers, result_rows(), (24, 24, 12, 24, 23, 12, 19) + (20,) * len(RESULT_FIELDS),
+        )
+        workbook.move_sheet(summary, offset=2)
     _output_table(
         workbook, "Warnings", "Review case issues and unused or orphan workbook entries.",
         ("Repair ID", "Input sheet", "Source row", "Status", "Issue"),

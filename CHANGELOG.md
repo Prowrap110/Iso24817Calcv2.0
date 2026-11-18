@@ -1,5 +1,12 @@
 # Changelog
 
+## Weighted primary results — 18 November 2026
+
+- Show weighted population, fabric, epoxy and offered putty totals on the live CalcBatch results page.
+- Apply tender weights to the primary Results material and band columns, preserving per-repair engineering dimensions.
+- Preserve unweighted calculation records in Unit Results and label Unit Scenario Summary as diagnostics only.
+- Leave all calculation equations and tender procurement totals unchanged.
+
 ## All-ply fabric procurement reporting — 18 November 2026
 
 - Report 300/500 mm band counts across every installed ply and repair in both apps and downloads.

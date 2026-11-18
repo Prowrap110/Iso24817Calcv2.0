@@ -47,8 +47,8 @@ def test_weighted_export_includes_all_plies_without_rounding_population_shares()
     fractional, _ = process_workbook(weighted_workbook(shares=(.61, .39)))
     f = load_workbook(BytesIO(fractional), data_only=True)['Tender Takeoff']
     assert f['H5'].value == pytest.approx(36.6)
-    for result, row in zip(results, book['Results'].iter_rows(min_row=5, values_only=True)):
-        headers = [c.value for c in book['Results'][4]]
+    for result, row in zip(results, book['Unit Results'].iter_rows(min_row=5, values_only=True)):
+        headers = [c.value for c in book['Unit Results'][4]]
         exported = dict(zip(headers, row))
         assert exported['500 mm bands · all plies'] == result['results']['count_500']
         assert exported['300 mm fabric [m]'] == pytest.approx(result['results']['fabric_length_300_m'])

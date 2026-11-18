@@ -6,7 +6,7 @@ from decimal import Decimal
 from math import ceil, fsum, isclose, isfinite
 
 WEIGHTS = 'Estimate Weights'
-PROCUREMENT_REPORT_VERSION = 'all-plies-width-metres-1'
+PROCUREMENT_REPORT_VERSION = 'weighted-results-width-metres-2'
 HEADERS = (
     'Repair ID', 'Pipe group', 'Diameter [in]', 'Group repair quantity',
     'Scenario share', 'Group minimum putty [L]', 'Yield [L per 1 kg kit]',

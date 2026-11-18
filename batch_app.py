@@ -175,6 +175,15 @@ def main():
     b.metric("Estimates", estimated)
     c.metric("Require review", other)
     st.caption("Results are for engineering review. The export keeps estimate quantities separate.")
+    totals = takeoff(batch.weights, results)[0] if batch.weights else []
+    if totals:
+        total = totals[0]
+        st.subheader('Weighted tender totals')
+        a, b, c, d = st.columns(4)
+        a.metric('Weighted repairs', f'{total[1]:g}')
+        b.metric('Total fabric', f'{total[2]:,.2f} m²')
+        c.metric('Laminate epoxy', f'{total[3]:,.2f} kg')
+        d.metric('Offered putty', f'{total[5]:g} × 1 kg')
     pressure_rows = [
         {'Repair ID': record['repair_id'],
          'Pressure basis': record['details']['pressure_basis']['basis'],
@@ -197,13 +206,12 @@ def main():
     )
     if batch.weights:
         st.subheader('Weighted fabric procurement')
-        totals, _, _ = takeoff(batch.weights, results)
         if totals:
             st.dataframe([
-                dict(zip(('Scope', 'Repairs', *FABRIC_HEADERS), (row[0], row[1], *row[7:])))
+                dict(zip(('Scope', 'Repairs', 'Fabric [m²]', *FABRIC_HEADERS), (row[0], row[1], row[2], *row[7:])))
                 for row in totals
             ], hide_index=True, width='stretch')
-        st.caption('Open Tender Takeoff in the exported workbook for weighted procurement quantities. Results lists one repair per scenario. Band counts include all plies; weighted counts can be fractional. Fabric metres use the same circumference as the area estimate.')
+        st.caption('Results and Tender Takeoff show weighted tender quantities. Unit Results preserves one unweighted repair per scenario. Band counts include all plies; weighted counts can be fractional. Fabric metres use the same circumference as the area estimate.')
     else:
         st.caption("Open Summary and Cost in Excel to enter prices, densities or litre quantities, and the sales multiplier. Prices and EXW/FOB/CFR totals calculate automatically.")
 

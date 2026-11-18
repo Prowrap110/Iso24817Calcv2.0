@@ -18,7 +18,9 @@ weighted rows. List every Repair ID once and make each group's shares total
 100%. Enter the tender minimum in mixed litres and the verified mixed yield per
 1 kg putty kit. CalcBatch applies the shares once, takes the greater of calculated
 putty and the minimum equivalent, and rounds up once per pipe group. The
-**Results** tab remains the unit calculation record. An incomplete weighted
+**Results** tab shows weighted material, band and equivalent-repair quantities,
+while its engineering dimensions stay per repair. **Unit Results** preserves
+the unweighted calculation record for single-case checking. An incomplete weighted
 run reports individual cases and withholds procurement totals.
 
 Band counts represent single-ply circumferential bands summed across all
