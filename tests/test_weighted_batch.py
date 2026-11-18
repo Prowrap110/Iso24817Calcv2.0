@@ -33,7 +33,7 @@ def test_weighted_export_applies_shares_once_and_rounds_minimum_to_kits():
     total = tuple(c.value for c in book['Tender Takeoff'][5])
     assert total[:2] == ('All repairs', 5)
     area = 3*results[0]['results']['fabric_area_m2'] + 2*results[1]['results']['fabric_area_m2']
-    assert total[2:] == pytest.approx((area,2*area,12,16,2*area+16))
+    assert total[2:7] == pytest.approx((area,2*area,12,16,2*area+16))
     assert all(r['results']['quantity'] == 1 for r in results)
 
 

@@ -12,6 +12,11 @@ HEADERS = (
     'Zone width basis', 'Zone width [mm]',
 )
 
+# Appended reporting fields preserve the existing material columns and calculations.
+FABRIC_KEYS = ('count_500', 'count_300', 'fabric_length_500_m', 'fabric_length_300_m')
+FABRIC_HEADERS = ('500 mm bands · all plies', '300 mm bands · all plies',
+                  '500 mm fabric [m]', '300 mm fabric [m]')
+
 
 @dataclass(frozen=True)
 class Scenario:
@@ -89,7 +94,7 @@ def takeoff(weights, results):
         weight = weights[result['repair_id'].strip().casefold()]
         valid = result['status'] == 'ESTIMATE'
         values = tuple(weight.equivalent_repairs * result['results'][key] if valid else None for key in (
-            'fabric_area_m2', 'laminate_epoxy_kg', 'putty_kg',
+            'fabric_area_m2', 'laminate_epoxy_kg', 'putty_kg', *FABRIC_KEYS,
         ))
         grouped[weight.group].append((result['inputs']['mechanism'], weight, values))
         scenarios.append((weight.repair_id, weight.group, result['status'], weight.count, weight.share,
@@ -104,8 +109,10 @@ def takeoff(weights, results):
         minimum_kits = ceil(Decimal(str(weight.minimum_l)) / Decimal(str(weight.yield_l)))
         # Apply one rounding step to the group's unrounded calculated mass.
         kits = max(ceil(round(putty, 10)), minimum_kits)
+        band_totals = tuple(fsum(values[i] for _, _, values in rows) for i in range(3, 7))
         groups.append((group, mechanism, weight.diameter, weight.count, fabric, epoxy, putty,
-                       weight.minimum_l, weight.yield_l, kits, kits * weight.yield_l, fsum((epoxy, kits))))
+                       weight.minimum_l, weight.yield_l, kits, kits * weight.yield_l,
+                       fsum((epoxy, kits)), *band_totals))
     totals = []
     for label, entries in (
         ('All repairs', groups),
@@ -116,5 +123,6 @@ def takeoff(weights, results):
         repairs = sum(row[3] for row in entries)
         fabric, epoxy, putty, combined = (fsum(row[index] for row in entries) for index in (4, 5, 6, 11))
         kits = sum(row[9] for row in entries)
-        totals.append((label, repairs, fabric, epoxy, putty, kits, combined))
+        band_totals = tuple(fsum(row[i] for row in entries) for i in range(12, 16))
+        totals.append((label, repairs, fabric, epoxy, putty, kits, combined, *band_totals))
     return totals, groups, scenarios

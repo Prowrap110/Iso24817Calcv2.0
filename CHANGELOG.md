@@ -1,5 +1,12 @@
 # Changelog
 
+## All-ply fabric procurement reporting — 18 November 2026
+
+- Report 300/500 mm band counts across every installed ply and repair in both apps and downloads.
+- Add fabric metres by width to single results and weighted scenario, pipe-group and diameter totals.
+- Keep existing sizing, fabric area, epoxy, putty and pricing unchanged; retain fractional weighted band equivalents.
+- Invalidate old result displays when the reporting schema changes.
+
 ## Absolute thermal-strain deduction — 18 November 2026
 
 - Correct ISO 24817:2017 Equation (10) in the shared single/batch engine: deduct the largest absolute thermal mismatch across service-temperature extremes in both laminate directions.

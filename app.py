@@ -3,7 +3,7 @@ import re
 from math import isfinite
 import pandas as pd
 import streamlit as st
-from prowrap_v2 import ISO_STANDARD, __version__
+from prowrap_v2 import ISO_STANDARD, PROCUREMENT_REPORT_VERSION, __version__
 from prowrap_v2.schema import FIELD_DEFINITIONS, SECTIONS, DEFECT_FIELDS, LOAD_FIELDS, default_case
 from prowrap_v2.ui_logic import (
     OPENING_FIELDS, active_fields, case_for_calculation, uses_measured_defects,
@@ -35,9 +35,11 @@ for key,value in default_case().items():
     st.session_state.setdefault('case_'+key,value)
 st.session_state.setdefault('defect_records',[])
 st.session_state.setdefault('load_records',[])
-if st.session_state.get('result_standard') != ISO_STANDARD:
+if (st.session_state.get('result_standard') != ISO_STANDARD
+        or st.session_state.get('result_reporting') != PROCUREMENT_REPORT_VERSION):
     clear_result()
     st.session_state['result_standard'] = ISO_STANDARD
+    st.session_state['result_reporting'] = PROCUREMENT_REPORT_VERSION
 
 st.title('PROWRAP Calculator v2.0')
 st.caption(f'{ISO_STANDARD} · Single repair')
@@ -252,7 +254,11 @@ if st.session_state.get('calculation_results'):
             b.metric('Laminate epoxy total',f"{vals['laminate_epoxy_kg']:.2f} kg")
             c.metric('Putty total',f"{vals['putty_kg']:.2f} kg")
             st.caption(f"Putty: {vals['putty_per_repair_kg']:.3f} kg per defect × {vals.get('quantity',1):g} identical repairs = {vals['putty_kg']:.3f} kg total.")
-            st.write(f"Total fabric bands: **{vals['count_500']} × 500 mm** and **{vals['count_300']} × 300 mm**. Total epoxy: **{vals['total_epoxy_kg']:.2f} kg**. Quantity: **{vals.get('quantity',1):g}**.")
+            st.write(f"Total single-ply fabric bands across all plies and repairs: **{vals['count_500']} × 500 mm** and **{vals['count_300']} × 300 mm**. Total epoxy: **{vals['total_epoxy_kg']:.2f} kg**. Quantity: **{vals.get('quantity',1):g}**.")
+            a,b=st.columns(2)
+            a.metric('500 mm fabric length',f"{vals['fabric_length_500_m']:.2f} m")
+            b.metric('300 mm fabric length',f"{vals['fabric_length_300_m']:.2f} m")
+            st.caption('Fabric metres include every ply and repair, using the same mean circumference as the fabric area estimate.')
             if result['inputs']['substrate_route'] != 'Full laminate':
                 st.metric('Remaining-pipe Ps', f"{result['details']['substrate_pressure_mpa']*10:.3f} bar")
                 b31g = result['details'].get('b31g')
@@ -276,5 +282,6 @@ if st.session_state.get('calculation_results'):
         if len(eligible)==len(records):
             st.subheader('Population material totals')
             st.write({label:round(sum(r['results'][key] for r in eligible),3) for label,key in [('Fabric [m²]','fabric_area_m2'),('Laminate epoxy [kg]','laminate_epoxy_kg'),('Putty [kg]','putty_kg'),('Total epoxy [kg]','total_epoxy_kg')]})
+            st.write({label:round(sum(r['results'][key] for r in eligible),3) for label,key in [('500 mm bands · all plies','count_500'),('300 mm bands · all plies','count_300'),('500 mm fabric [m]','fabric_length_500_m'),('300 mm fabric [m]','fabric_length_300_m')]})
         else:st.warning('Population totals are unavailable until all groups have valid calculation results.')
 st.caption(f'PROWRAP · Version {__version__} · {ISO_STANDARD} calculation record for engineering review')

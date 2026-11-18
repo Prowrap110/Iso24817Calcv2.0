@@ -19,7 +19,7 @@ from . import ISO_STANDARD as STANDARD
 from . import LEGACY_INPUT_FIELDS
 from .schema import DEFECT_FIELDS, FIELD_DEFINITIONS, LOAD_FIELDS, SECTIONS, default_case
 from .commercial import add_commercial_summary
-from .weighted import HEADERS as WEIGHT_HEADERS, WEIGHTS, read_weights, takeoff, validate_repairs
+from .weighted import FABRIC_HEADERS, HEADERS as WEIGHT_HEADERS, WEIGHTS, read_weights, takeoff, validate_repairs
 
 SETUP = "Batch Setup"
 LINES = "Line Defaults"
@@ -88,14 +88,16 @@ RESULT_FIELDS = {
     "installed_thickness_mm": "Installed laminate [mm]",
     "total_repair_length_mm": "Required repair length [mm]",
     "overlap_mm": "Required overlap per side [mm]",
-    "count_500": "500 mm bands · total",
-    "count_300": "300 mm bands · total",
+    "count_500": "500 mm bands · all plies",
+    "count_300": "300 mm bands · all plies",
     "fabric_area_m2": "Fabric total [m²]",
     "laminate_epoxy_kg": "Laminate epoxy total [kg]",
     "putty_kg": "Putty total [kg]",
     "total_epoxy_kg": "Epoxy including putty [kg]",
     "quantity": "Identical repairs",
     "putty_per_repair_kg": "Putty per defect [kg]",
+    "fabric_length_500_m": "500 mm fabric [m]",
+    "fabric_length_300_m": "300 mm fabric [m]",
 }
 
 
@@ -798,10 +800,10 @@ def _write_takeoff(workbook, weights, results):
     totals, groups, scenarios = takeoff(weights, results)
     summary = _output_table(
         workbook, 'Tender Takeoff',
-        f'Estimate using {STANDARD}. See Tender Scenarios for weights and Results for unit sizing.',
+        f'Estimate using {STANDARD}. All-ply band counts and fabric metres include the tender weights; equivalent counts can be fractional.',
         ('Scope', 'Repairs', 'Fabric [m²]', 'Laminate epoxy [kg]', 'Calculated putty [kg]',
-         'Offered putty [1 kg kits]', 'Epoxy plus offered putty [kg]'),
-        totals, (23, 12, 16, 19, 20, 22, 25),
+         'Offered putty [1 kg kits]', 'Epoxy plus offered putty [kg]', *FABRIC_HEADERS),
+        totals, (23, 12, 16, 19, 20, 22, 25, 23, 23, 22, 22),
     )
     if totals:
         for cell in summary[5]:
@@ -813,20 +815,21 @@ def _write_takeoff(workbook, weights, results):
         'Offered putty rounds up the higher of weighted putty mass and the tender minimum converted to 1 kg kits.',
         ('Pipe group', 'Mechanism', 'Diameter [in]', 'Repairs', 'Fabric [m²]', 'Laminate epoxy [kg]',
          'Calculated putty [kg]', 'Tender minimum [L]', 'Yield [L/kit]', 'Offered putty [1 kg kits]',
-         'Offered yield [L]', 'Epoxy plus offered putty [kg]'),
-        groups, (23, 19, 14, 10, 16, 19, 20, 18, 14, 23, 16, 25),
+         'Offered yield [L]', 'Epoxy plus offered putty [kg]', *FABRIC_HEADERS),
+        groups, (23, 19, 14, 10, 16, 19, 20, 18, 14, 23, 16, 25, 23, 23, 22, 22),
     )
     audit = _output_table(
         workbook, 'Tender Scenarios',
-        'One sizing per scenario. Group quantity × scenario share gives equivalent repairs. Width is distribution metadata.',
+        'Group quantity × scenario share gives equivalent repairs. Fabric metres and all-ply band counts include those weights. Zone width is distribution metadata.',
         ('Repair ID', 'Pipe group', 'Status', 'Group quantity', 'Scenario share', 'Equivalent repairs',
-         'Zone width basis', 'Zone width [mm]', 'Weighted fabric [m²]', 'Weighted epoxy [kg]', 'Weighted putty [kg]'),
-        scenarios, (26, 23, 24, 14, 14, 16, 16, 15, 20, 20, 20),
+         'Zone width basis', 'Zone width [mm]', 'Weighted fabric [m²]', 'Weighted epoxy [kg]', 'Weighted putty [kg]', *FABRIC_HEADERS),
+        scenarios, (26, 23, 24, 14, 14, 16, 16, 15, 20, 20, 20, 23, 23, 22, 22),
     )
     for cell in audit['E'][4:]:
         cell.number_format = '0.00%'
-    for sheet, columns in ((summary, (3, 4, 5, 7)), (workbook['Tender Pipe Groups'], (5, 6, 7, 8, 9, 11, 12)),
-                           (audit, (8, 9, 10, 11))):
+    for sheet, columns in ((summary, (3, 4, 5, 7, 8, 9, 10, 11)),
+                           (workbook['Tender Pipe Groups'], (5, 6, 7, 8, 9, 11, 12, 13, 14, 15, 16)),
+                           (audit, (8, 9, 10, 11, 12, 13, 14, 15))):
         for index in columns:
             for cell in sheet[get_column_letter(index)][4:]:
                 if cell.data_type == 'n':
@@ -861,7 +864,7 @@ def calculate_batch(batch: PreparedBatch) -> tuple[bytes, list[dict]]:
     headers = ("Repair ID", "Source Repair ID", "Source row", "Status", "Asset / line", "Type", "Governing load") + tuple(RESULT_FIELDS.values())
     _output_table(
         workbook, "Results",
-        f"{STANDARD} engineering calculation. Repair dimensions apply to one repair. Material and band totals include quantity.",
+        f"{STANDARD} engineering calculation. Repair dimensions apply to one repair. Band counts include all plies and quantity. Width metres reconcile to fabric area; weighted populations are on Tender Takeoff.",
         headers,
         (
             (result["repair_id"], repair.case["repair_id"], repair.source.number, result["status"],

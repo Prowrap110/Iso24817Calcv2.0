@@ -21,6 +21,15 @@ putty and the minimum equivalent, and rounds up once per pipe group. The
 **Results** tab remains the unit calculation record. An incomplete weighted
 run reports individual cases and withholds procurement totals.
 
+Band counts represent single-ply circumferential bands summed across all
+installed plies and identical repairs. Fabric metres are reported separately
+for 300 mm and 500 mm widths, using the same mean ply circumference as the
+existing fabric area estimate. Thus 0.3 times the 300 mm metres plus 0.5 times
+the 500 mm metres equals the fabric area. Weighted exports apply scenario
+shares once to these counts and metres; equivalent band counts can be
+fractional and do not represent rounded roll orders. This reporting update
+does not change design dimensions, fabric area, epoxy or putty consumption.
+
 ## Applications
 
 | Application | Entry point | Workflow |

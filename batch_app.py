@@ -7,10 +7,11 @@ import streamlit as st
 from prowrap_v2.batch import (
     MAX_FILE_MB, STANDARD, WorkbookError, calculate_batch, prepare_workbook, template_workbook,
 )
-from prowrap_v2 import LEGACY_INPUT_FIELDS
+from prowrap_v2 import LEGACY_INPUT_FIELDS, PROCUREMENT_REPORT_VERSION
 from prowrap_v2.schema import FIELD_DEFINITIONS
 from prowrap_v2.assessment import b31g_factor_details
 from prowrap_v2.pressure import pressure_basis_details
+from prowrap_v2.weighted import FABRIC_HEADERS, takeoff
 
 MIME_XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 PREVIEW_FIELDS = (
@@ -135,14 +136,14 @@ def main():
     content = uploaded.getvalue()
     digest = sha256(content).hexdigest()
     session = st.session_state.get("batch_upload")
-    if session is None or session.get("key") != (STANDARD, digest):
+    if session is None or session.get("key") != (STANDARD, PROCUREMENT_REPORT_VERSION, digest):
         try:
             batch = prepare_workbook(content)
         except WorkbookError as error:
             st.session_state.pop("batch_upload", None)
             st.error(str(error))
             return
-        session = {"key": (STANDARD, digest), "batch": batch, "output": None}
+        session = {"key": (STANDARD, PROCUREMENT_REPORT_VERSION, digest), "batch": batch, "output": None}
         st.session_state["batch_upload"] = session
 
     batch = session["batch"]
@@ -195,7 +196,14 @@ def main():
         file_name="PROWRAP_CalcBatch_v2_Results.xlsx", on_click="ignore",
     )
     if batch.weights:
-        st.caption("Open Tender Takeoff in the exported workbook for weighted procurement quantities. Results lists one repair per scenario.")
+        st.subheader('Weighted fabric procurement')
+        totals, _, _ = takeoff(batch.weights, results)
+        if totals:
+            st.dataframe([
+                dict(zip(('Scope', 'Repairs', *FABRIC_HEADERS), (row[0], row[1], *row[7:])))
+                for row in totals
+            ], hide_index=True, width='stretch')
+        st.caption('Open Tender Takeoff in the exported workbook for weighted procurement quantities. Results lists one repair per scenario. Band counts include all plies; weighted counts can be fractional. Fabric metres use the same circumference as the area estimate.')
     else:
         st.caption("Open Summary and Cost in Excel to enter prices, densities or litre quantities, and the sales multiplier. Prices and EXW/FOB/CFR totals calculate automatically.")
 
