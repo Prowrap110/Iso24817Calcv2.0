@@ -52,8 +52,8 @@ def _cyclic(case):
 def _strain_and_factors(case, material, repair_type):
     """Clauses 7.5.3, 7.5.5, 7.5.6 and Tables 5–10.
 
-    Both thermal extremes are checked using the maximum-temperature derating;
-    this conservatively envelopes cold mismatch without relaxing hot design strain.
+    Both thermal extremes are checked using the maximum-temperature derating.
+    Equation (10) deducts the absolute mismatch for heating and cooling alike.
     """
     life=_n(case,'design_life_years',minimum=2)
     initial=_n(case,'initial_service_life_years',positive=True)
@@ -93,8 +93,8 @@ def _strain_and_factors(case, material, repair_type):
     alpha_s=_n(case,'steel_cte')
     delta_c=alpha_s-_n(material,'alpha_c')
     delta_a=alpha_s-_n(material,'alpha_a')
-    thermal_c=max((temp-install)*delta_c,(cold-install)*delta_c)
-    thermal_a=max((temp-install)*delta_a,(cold-install)*delta_a)
+    thermal_c=max(abs((temp-install)*delta_c),abs((cold-install)*delta_c))
+    thermal_a=max(abs((temp-install)*delta_a),abs((cold-install)*delta_a))
     if basis=='Default' and material['short_term_hoop_failure_strain']<=.01:
         raise ValueError('Table 9 requires a hoop strain to failure greater than 1%')
     epsilon_c=fc*(f1*e0c-thermal_c)
