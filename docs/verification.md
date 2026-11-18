@@ -1,5 +1,16 @@
 # Release verification — 2.0.0
 
+## Absolute thermal-strain deduction — 18 November 2026
+
+The existing 347 tests passed before the correction. Nine new regression checks
+failed on the original signed mismatch, then the complete suite passed with
+**356 tests** after correcting Equation (10). The new tests cover both material
+profiles, Default and LTS, heating and cooling, service-temperature extremes,
+nonpositive strain, and identical corrected results through both Streamlit apps.
+An independent reviewer also passed the complete suite and 52 scalar checks for
+temperature endpoints, equal CTE and unchanged signed Equation (29) bond stress.
+The only executable production changes are the two absolute thermal deductions.
+
 ## ISO 24817:2017 revision — 17 November 2026
 
 The verification suite covers single and batch calculations, output edition labels,
