@@ -1,5 +1,11 @@
 # Changelog
 
+## Absolute thermal-strain deduction — 18 November 2026
+
+- Correct ISO 24817:2017 Equation (10) in the shared single/batch engine: deduct the largest absolute thermal mismatch across service-temperature extremes in both laminate directions.
+- Preserve the signed interface-stress calculation, substrate-credit routes, pressure end thrust, dent method and version 2.0.0.
+- Add independent heating/cooling, service-extreme and paired-app regression tests.
+
 ## Restore ISO 24817:2017 with weighted CalcBatch estimates
 
 - Restore the shared ISO 24817:2017 engine and edition labels in both apps.
