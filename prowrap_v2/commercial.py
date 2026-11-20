@@ -10,7 +10,7 @@ from openpyxl.workbook.properties import CalcProperties
 COMMERCIAL_INPUTS = {
     13: ("Currency", "e.g. EUR"),
     14: ("Fabric cost", "currency/m²"),
-    15: ("Epoxy + putty cost", "currency/L · common rate"),
+    15: ("All epoxy systems cost", "currency/kg · saturator, primer, putty"),
     16: ("Sales multiplier", "× material cost"),
     17: ("Mixed saturator density", "kg/L"),
     18: ("Mixed putty density", "kg/L"),
@@ -46,7 +46,7 @@ def _header(sheet, row, labels):
 
 def commercial_groups(results):
     """Aggregate only valid quantities, retaining the engineering status."""
-    groups = defaultdict(lambda: [0, 0, 0, 0, 0])
+    groups = defaultdict(lambda: [0, 0, 0, 0, 0, 0])
     for result in results:
         status = result["status"]
         if status not in {"CALCULATED", "ESTIMATE"}:
@@ -56,7 +56,7 @@ def commercial_groups(results):
         group = groups[status, kind]
         quantities = result["results"]
         group[0] += 1
-        for index, key in enumerate(("quantity", "fabric_area_m2", "laminate_epoxy_kg", "putty_kg"), 1):
+        for index, key in enumerate(("quantity", "fabric_area_m2", "laminate_epoxy_kg", "putty_kg", "primer_kg"), 1):
             group[index] += quantities[key]
     return groups
 
@@ -91,18 +91,21 @@ def add_commercial_summary(sheet, results, legacy_rates):
     _literal(sheet["A19"], "Legacy epoxy + putty rate")
     sheet["B19"] = legacy_rates.get("epoxy_rate")
     _literal(sheet["C19"], f'{legacy_rates.get("currency", "currency")}/kg · reference only')
-    _literal(sheet["A24"], "Amber cells are editable. Blank litre overrides use density conversion. Sale = material cost × multiplier.")
+    _literal(sheet["A24"], "Amber cells are editable. Chemical prices apply to kilograms. Volumes are optional information. Sale = material cost × multiplier.")
     _literal(sheet["A25"], "Valid batch cases only; estimates remain estimates. Tender population weights and packaging quantities require a project take-off.")
     for row in (24, 25):
         sheet.cell(row, 1).font = Font(name="Calibri", size=10, italic=True, color="62778B")
     _header(sheet, 27, (
         "Status", "Mechanism", "Result rows", "Repair quantity", "Fabric [m²]", "Saturator [kg]",
         "Putty [kg]", "Saturator override [L]", "Putty override [L]", "Saturator [L]", "Putty [L]",
-        "Epoxy + putty [L]", "Fabric cost", "Epoxy + putty cost", "Material cost", "Sale price",
+        "Saturator + putty [L]", "Fabric cost", "All epoxy systems cost", "Material cost", "Sale price", "Primer [kg]", "All chemical systems [kg]",
     ))
     groups = commercial_groups(results)
     for row, status, kind in COMMERCIAL_ROWS:
-        values = [status, kind, *groups[status, kind]]
+        counts = groups[status, kind]
+        values = [status, kind, *counts[:5]]
+        sheet[f"Q{row}"] = counts[5]
+        sheet[f"R{row}"] = f"=SUM(F{row}:G{row},Q{row})"
         for col, value in enumerate(values, 1):
             _literal(sheet.cell(row, col), value)
         for col in (8, 9):
@@ -116,13 +119,13 @@ def add_commercial_summary(sheet, results, legacy_rates):
             f'=IF(C{row}=0,0,IF(AND($B$13<>"",ISNUMBER($B$14),$B$14>=0),E{row}*$B$14,""))'
         )
         sheet[f"N{row}"] = (
-            f'=IF(C{row}=0,0,IF(AND($B$13<>"",ISNUMBER($B$15),$B$15>=0,ISNUMBER(L{row})),L{row}*$B$15,""))'
+            f'=IF(C{row}=0,0,IF(AND($B$13<>"",ISNUMBER($B$15),$B$15>=0,ISNUMBER(R{row})),R{row}*$B$15,""))'
         )
         sheet[f"O{row}"] = f'=IF(COUNT(M{row}:N{row})=2,SUM(M{row}:N{row}),"")'
         sheet[f"P{row}"] = (
             f'=IF(C{row}=0,0,IF(AND(ISNUMBER(O{row}),ISNUMBER($B$16),$B$16>=0),O{row}*$B$16,""))'
         )
-        for cells in sheet.iter_rows(min_row=row, max_row=row, min_col=5, max_col=16):
+        for cells in sheet.iter_rows(min_row=row, max_row=row, min_col=5, max_col=18):
             for cell in cells:
                 cell.number_format = "#,##0.00"
                 cell.alignment = Alignment(vertical="center", horizontal="right")
@@ -150,7 +153,7 @@ def add_commercial_summary(sheet, results, legacy_rates):
     for row in sheet.iter_rows(min_row=38, max_row=46, min_col=3, max_col=4):
         for cell in row:
             cell.number_format = "#,##0.00"
-    for col, width in {"A": 36, "B": 19, "C": 29, "D": 21, "E": 18, "F": 19, "G": 18, "H": 21, "I": 21, "J": 18, "K": 18, "L": 21, "M": 18, "N": 21, "O": 19, "P": 19}.items():
+    for col, width in {"A": 36, "B": 19, "C": 29, "D": 21, "E": 18, "F": 19, "G": 18, "H": 21, "I": 21, "J": 18, "K": 18, "L": 21, "M": 18, "N": 21, "O": 19, "P": 19, "Q": 18, "R": 22}.items():
         sheet.column_dimensions[col].width = width
     for row in range(13, 23):
         sheet.row_dimensions[row].height = 25

@@ -15,9 +15,11 @@ RESULT_LABELS = {
     'count_500':'500 mm fabric bands total (all plies)', 'count_300':'300 mm fabric bands total (all plies)',
     'fabric_length_500_m':'500 mm fabric length total [m]',
     'fabric_length_300_m':'300 mm fabric length total [m]',
-    'fabric_area_m2':'Fabric area total [m2]', 'laminate_epoxy_kg':'Laminate epoxy total [kg]',
-    'putty_kg':'Putty total [kg]', 'total_epoxy_kg':'Total epoxy [kg]',
+    'fabric_area_m2':'Fabric area total [m2]', 'laminate_epoxy_kg':'Saturator total [kg]',
+    'putty_kg':'Putty total [kg]', 'total_epoxy_kg':'Saturator + primer + putty [kg]',
     'quantity':'Number of repairs', 'repair_type':'Defect design type',
+    'repair_area_m2':'Pipe repair surface [m2]', 'primer_kg':'Primer [kg]',
+    'saturator_and_primer_kg':'Saturator + primer [kg]',
     'putty_per_repair_kg':'Putty per defect [kg]',
 }
 

@@ -69,7 +69,7 @@ def test_putty_override_scales_once_and_leaves_engineering_unchanged(make_case, 
     outputs = result["results"]
     assert outputs["putty_per_repair_kg"] == override
     assert outputs["putty_kg"] == expected_total
-    assert outputs["total_epoxy_kg"] == pytest.approx(outputs["laminate_epoxy_kg"] + expected_total)
+    assert outputs["total_epoxy_kg"] == pytest.approx(outputs["laminate_epoxy_kg"] + outputs["primer_kg"] + expected_total)
     for key in ("installed_plies", "installed_thickness_mm", "total_repair_length_mm",
                 "count_500", "count_300", "fabric_area_m2", "laminate_epoxy_kg"):
         assert outputs[key] == automatic["results"][key]

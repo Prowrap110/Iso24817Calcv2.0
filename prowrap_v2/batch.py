@@ -19,7 +19,7 @@ from . import ISO_STANDARD as STANDARD
 from . import LEGACY_INPUT_FIELDS
 from .schema import DEFECT_FIELDS, FIELD_DEFINITIONS, LOAD_FIELDS, SECTIONS, default_case
 from .commercial import add_commercial_summary
-from .weighted import FABRIC_HEADERS, HEADERS as WEIGHT_HEADERS, WEIGHTS, read_weights, takeoff, validate_repairs
+from .weighted import FABRIC_HEADERS, SURFACE_HEADERS, SURFACE_KEYS, HEADERS as WEIGHT_HEADERS, WEIGHTS, read_weights, takeoff, validate_repairs
 
 SETUP = "Batch Setup"
 LINES = "Line Defaults"
@@ -91,13 +91,14 @@ RESULT_FIELDS = {
     "count_500": "500 mm bands · all plies",
     "count_300": "300 mm bands · all plies",
     "fabric_area_m2": "Fabric total [m²]",
-    "laminate_epoxy_kg": "Laminate epoxy total [kg]",
+    "laminate_epoxy_kg": "Saturator total [kg]",
     "putty_kg": "Putty total [kg]",
-    "total_epoxy_kg": "Epoxy including putty [kg]",
+    "total_epoxy_kg": "Saturator + primer + putty [kg]",
     "quantity": "Identical repairs",
     "putty_per_repair_kg": "Putty per defect [kg]",
     "fabric_length_500_m": "500 mm fabric [m]",
     "fabric_length_300_m": "300 mm fabric [m]",
+    **dict(zip(SURFACE_KEYS, SURFACE_HEADERS)),
 }
 
 
@@ -780,7 +781,7 @@ def _summary(results, rates, warnings):
         same_status = [record for record in results if record["status"] == status]
         quantities = [record["results"] for record in same_status if status in VALID_STATUSES]
         if not quantities:
-            rows.append((status, len(same_status), None, None, None, None, None, None, None))
+            rows.append((status, len(same_status), None, None, None, None, None, None, None, None, None, None))
             continue
         quantity, area, laminate, putty, epoxy = (
             sum(values[key] for values in quantities)
@@ -792,7 +793,8 @@ def _summary(results, rates, warnings):
             if not isfinite(cost):
                 cost = None
                 warnings.append((None, SETUP, None, "COMMERCIAL", f"{status} material cost exceeds numeric limits."))
-        rows.append((status, len(same_status), quantity, area, laminate, putty, epoxy, cost, rates.get("currency")))
+        surface = tuple(sum(values[key] for values in quantities) for key in SURFACE_KEYS)
+        rows.append((status, len(same_status), quantity, area, laminate, putty, epoxy, cost, rates.get("currency"), *surface))
     return rows
 
 
@@ -801,9 +803,9 @@ def _write_takeoff(workbook, weights, results):
     summary = _output_table(
         workbook, 'Tender Takeoff',
         f'Estimate using {STANDARD}. All-ply band counts and fabric metres include the tender weights; equivalent counts can be fractional.',
-        ('Scope', 'Repairs', 'Fabric [m²]', 'Laminate epoxy [kg]', 'Calculated putty [kg]',
-         'Offered putty [1 kg kits]', 'Epoxy plus offered putty [kg]', *FABRIC_HEADERS),
-        totals, (23, 12, 16, 19, 20, 22, 25, 23, 23, 22, 22),
+        ('Scope', 'Repairs', 'Fabric [m²]', 'Saturator [kg]', 'Calculated putty [kg]',
+         'Offered putty [1 kg kits]', 'Saturator + primer + offered putty [kg]', *FABRIC_HEADERS, *SURFACE_HEADERS),
+        totals, (23, 12, 16, 19, 20, 22, 25, 23, 23, 22, 22, 22, 20, 24),
     )
     if totals:
         for cell in summary[5]:
@@ -813,23 +815,23 @@ def _write_takeoff(workbook, weights, results):
     _output_table(
         workbook, 'Tender Pipe Groups',
         'Offered putty rounds up the higher of weighted putty mass and the tender minimum converted to 1 kg kits.',
-        ('Pipe group', 'Mechanism', 'Diameter [in]', 'Repairs', 'Fabric [m²]', 'Laminate epoxy [kg]',
+        ('Pipe group', 'Mechanism', 'Diameter [in]', 'Repairs', 'Fabric [m²]', 'Saturator [kg]',
          'Calculated putty [kg]', 'Tender minimum [L]', 'Yield [L/kit]', 'Offered putty [1 kg kits]',
-         'Offered yield [L]', 'Epoxy plus offered putty [kg]', *FABRIC_HEADERS),
-        groups, (23, 19, 14, 10, 16, 19, 20, 18, 14, 23, 16, 25, 23, 23, 22, 22),
+         'Offered yield [L]', 'Saturator + primer + offered putty [kg]', *FABRIC_HEADERS, *SURFACE_HEADERS),
+        groups, (23, 19, 14, 10, 16, 19, 20, 18, 14, 23, 16, 25, 23, 23, 22, 22, 22, 20, 24),
     )
     audit = _output_table(
         workbook, 'Tender Scenarios',
         'Group quantity × scenario share gives equivalent repairs. Fabric metres and all-ply band counts include those weights. Zone width is distribution metadata.',
         ('Repair ID', 'Pipe group', 'Status', 'Group quantity', 'Scenario share', 'Equivalent repairs',
-         'Zone width basis', 'Zone width [mm]', 'Weighted fabric [m²]', 'Weighted epoxy [kg]', 'Weighted putty [kg]', *FABRIC_HEADERS),
-        scenarios, (26, 23, 24, 14, 14, 16, 16, 15, 20, 20, 20, 23, 23, 22, 22),
+         'Zone width basis', 'Zone width [mm]', 'Weighted fabric [m²]', 'Weighted saturator [kg]', 'Weighted putty [kg]', *FABRIC_HEADERS, *SURFACE_HEADERS),
+        scenarios, (26, 23, 24, 14, 14, 16, 16, 15, 20, 20, 20, 23, 23, 22, 22, 22, 20, 24),
     )
     for cell in audit['E'][4:]:
         cell.number_format = '0.00%'
-    for sheet, columns in ((summary, (3, 4, 5, 7, 8, 9, 10, 11)),
-                           (workbook['Tender Pipe Groups'], (5, 6, 7, 8, 9, 11, 12, 13, 14, 15, 16)),
-                           (audit, (8, 9, 10, 11, 12, 13, 14, 15))):
+    for sheet, columns in ((summary, (3, 4, 5, 7, 8, 9, 10, 11, 12, 13, 14)),
+                           (workbook['Tender Pipe Groups'], (5, 6, 7, 8, 9, 11, 12, 13, 14, 15, 16, 17, 18, 19)),
+                           (audit, (8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18))):
         for index in columns:
             for cell in sheet[get_column_letter(index)][4:]:
                 if cell.data_type == 'n':
@@ -856,9 +858,9 @@ def calculate_batch(batch: PreparedBatch) -> tuple[bytes, list[dict]]:
         workbook, "Unit Scenario Summary" if batch.weights else "Summary and Cost",
         (f"{STANDARD}. Unit-case diagnostics only, without population weights. Use Results or Tender Takeoff for tender quantities."
          if batch.weights else f"{STANDARD}  |  Calculated and indicative estimate material totals are shown separately."),
-        ("Status", "Result rows", "Repair quantity", "Fabric [m²]", "Laminate epoxy [kg]",
-         "Putty [kg]", "Epoxy including putty [kg]", "Material cost", "Currency"),
-        _summary(results, {} if batch.weights else batch.rates, warnings), (26, 14, 17, 17, 19, 15, 23, 18, 14),
+        ("Status", "Result rows", "Repair quantity", "Fabric [m²]", "Saturator [kg]",
+         "Putty [kg]", "Saturator + primer + putty [kg]", "Material cost", "Currency", *SURFACE_HEADERS),
+        _summary(results, {} if batch.weights else batch.rates, warnings), (26, 14, 17, 17, 19, 15, 23, 18, 14, 22, 20, 24),
     )
     if not batch.weights:
         add_commercial_summary(summary, results, batch.rates)
@@ -867,7 +869,7 @@ def calculate_batch(batch: PreparedBatch) -> tuple[bytes, list[dict]]:
     def result_rows(weighted=False):
         scalable = {'count_500', 'count_300', 'fabric_area_m2', 'laminate_epoxy_kg',
                     'putty_kg', 'total_epoxy_kg', 'quantity',
-                    'fabric_length_500_m', 'fabric_length_300_m'}
+                    'fabric_length_500_m', 'fabric_length_300_m', *SURFACE_KEYS}
         for repair, case, result in calculations:
             factor = batch.weights[result['repair_id'].casefold()].equivalent_repairs if weighted else 1
             values = []

@@ -114,7 +114,7 @@ def main():
         st.caption("Enter Number of identical repairs in Line Defaults column B. A linked repair with a blank quantity inherits it; Results shows the applied count under Identical repairs.")
         st.caption("Putty consumption per defect [kg] is optional in Batch Setup, Line Defaults column C and Repair Cases. Repair values override line and batch defaults; blank inherits, then uses automatic putty. Zero is allowed. Quantity multiplies the per-defect amount once.")
         st.caption("Automatic putty: corrosion uses 2 kg up to 200 mm axial defect/zone length, 3 kg up to 400 mm, then +1 kg for each further started 200 mm. Dents use one third of rectangular defect volume at 2 kg/L.")
-        st.caption("The results workbook includes blank pricing cells for fabric per m², epoxy per litre and a sales multiplier, with automatic sale totals.")
+        st.caption("The results workbook includes blank pricing cells for fabric per m², saturator, primer and putty per kg and a sales multiplier, with automatic sale totals.")
         st.caption('Choose Design pressure (default) or MAOP for calculations. Minimum design pressure defaults to 0 bar and can be overridden. Blank cells inherit line/batch settings; explicitly entered load-case pressures still apply.')
         st.caption('Fitness-for-service reference is optional. Include an available reference for the calculation record.')
         st.caption('LTS Design requires verified Annex E material data. Type B Design requires verified Annex D sealing and Annex F impact qualification. The qualified wall-loss limit defaults to 81% for PRW110 and PRW110+. Enter a percentage in Batch Setup, Line Defaults or repair inputs to override; end-of-life wall loss must remain strictly below the selected limit.')
@@ -182,8 +182,12 @@ def main():
         a, b, c, d = st.columns(4)
         a.metric('Weighted repairs', f'{total[1]:g}')
         b.metric('Total fabric', f'{total[2]:,.2f} m²')
-        c.metric('Laminate epoxy', f'{total[3]:,.2f} kg')
+        c.metric('Saturator', f'{total[3]:,.2f} kg')
         d.metric('Offered putty', f'{total[5]:g} × 1 kg')
+        a,b,c=st.columns(3)
+        a.metric('Primer', f'{total[12]:,.2f} kg')
+        b.metric('Saturator + primer', f'{total[13]:,.2f} kg')
+        c.metric('Calculated putty', f'{total[4]:,.2f} kg')
     pressure_rows = [
         {'Repair ID': record['repair_id'],
          'Pressure basis': record['details']['pressure_basis']['basis'],
@@ -208,12 +212,12 @@ def main():
         st.subheader('Weighted fabric procurement')
         if totals:
             st.dataframe([
-                dict(zip(('Scope', 'Repairs', 'Fabric [m²]', *FABRIC_HEADERS), (row[0], row[1], row[2], *row[7:])))
+                dict(zip(('Scope', 'Repairs', 'Fabric [m²]', *FABRIC_HEADERS), (row[0], row[1], row[2], *row[7:11])))
                 for row in totals
             ], hide_index=True, width='stretch')
         st.caption('Results and Tender Takeoff show weighted tender quantities. Unit Results preserves one unweighted repair per scenario. Band counts include all plies; weighted counts can be fractional. Fabric metres use the same circumference as the area estimate.')
     else:
-        st.caption("Open Summary and Cost in Excel to enter prices, densities or litre quantities, and the sales multiplier. Prices and EXW/FOB/CFR totals calculate automatically.")
+        st.caption("Open Summary and Cost in Excel to enter mass-based prices and the sales multiplier. Prices and EXW/FOB/CFR totals calculate automatically.")
 
 
 if __name__ == "__main__":

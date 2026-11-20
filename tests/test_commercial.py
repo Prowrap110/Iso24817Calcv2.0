@@ -7,7 +7,7 @@ from prowrap_v2.commercial import COMMERCIAL_INPUTS, add_commercial_summary, com
 
 def result(status="CALCULATED", mechanism="Corrosion", quantity=2, area=10, saturator=20, putty=4):
     return {"status": status, "inputs": {"mechanism": mechanism}, "results": {
-        "quantity": quantity, "fabric_area_m2": area, "laminate_epoxy_kg": saturator, "putty_kg": putty,
+        "primer_kg": 1.25, "quantity": quantity, "fabric_area_m2": area, "laminate_epoxy_kg": saturator, "putty_kg": putty,
     }}
 
 
@@ -32,9 +32,9 @@ def test_only_valid_cases_are_priced_without_mixing_status_or_mechanism():
         result("NO_VALID_DESIGN", quantity=900, area=900),
     ]
     grouped = commercial_groups(rows)
-    assert grouped["CALCULATED", "Corrosion"] == [2, 5, 15, 30, 5]
-    assert grouped["ESTIMATE", "Dents"] == [1, 4, 10, 20, 4]
-    assert grouped["CALCULATED", "Other"] == [1, 1, 10, 20, 4]
+    assert grouped["CALCULATED", "Corrosion"] == [2, 5, 15, 30, 5, 2.5]
+    assert grouped["ESTIMATE", "Dents"] == [1, 4, 10, 20, 4, 1.25]
+    assert grouped["CALCULATED", "Other"] == [1, 1, 10, 20, 4, 1.25]
     assert len(grouped) == 3
     sheet = exported(rows)["Summary and Cost"]
     assert [sheet.cell(28, c).value for c in range(3, 8)] == [2, 5, 15, 30, 5]
@@ -59,11 +59,14 @@ def test_all_price_controls_are_blank_and_editable_even_with_legacy_rates():
     assert wb.calculation.fullCalcOnLoad
 
 
-def test_formula_dependencies_keep_volume_rate_separate_from_legacy_mass_rate():
+def test_common_chemical_price_uses_mass_including_primer():
     sheet = exported([result()])["Summary and Cost"]
     formulas = {cell.coordinate: cell.value for row in sheet for cell in row if cell.data_type == "f"}
     assert len(formulas) > 50
     assert not any("$B$19" in formula for formula in formulas.values())
+    assert sheet["Q28"].value == 1.25
+    assert formulas["R28"] == "=SUM(F28:G28,Q28)"
+    assert "R28*$B$15" in formulas["N28"]
     assert "$B$14" in formulas["M28"]
     assert "$B$15" in formulas["N28"]
     assert "$B$16" in formulas["P28"]

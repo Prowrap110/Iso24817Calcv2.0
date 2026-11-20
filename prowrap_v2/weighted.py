@@ -6,7 +6,7 @@ from decimal import Decimal
 from math import ceil, fsum, isclose, isfinite
 
 WEIGHTS = 'Estimate Weights'
-PROCUREMENT_REPORT_VERSION = 'weighted-results-width-metres-2'
+PROCUREMENT_REPORT_VERSION = 'weighted-saturator-primer-3'
 HEADERS = (
     'Repair ID', 'Pipe group', 'Diameter [in]', 'Group repair quantity',
     'Scenario share', 'Group minimum putty [L]', 'Yield [L per 1 kg kit]',
@@ -14,6 +14,8 @@ HEADERS = (
 )
 
 # Appended reporting fields preserve the existing material columns and calculations.
+SURFACE_KEYS = ('repair_area_m2', 'primer_kg', 'saturator_and_primer_kg')
+SURFACE_HEADERS = ('Pipe repair surface [m²]', 'Primer [kg]', 'Saturator + primer [kg]')
 FABRIC_KEYS = ('count_500', 'count_300', 'fabric_length_500_m', 'fabric_length_300_m')
 FABRIC_HEADERS = ('500 mm bands · all plies', '300 mm bands · all plies',
                   '500 mm fabric [m]', '300 mm fabric [m]')
@@ -95,7 +97,7 @@ def takeoff(weights, results):
         weight = weights[result['repair_id'].strip().casefold()]
         valid = result['status'] == 'ESTIMATE'
         values = tuple(weight.equivalent_repairs * result['results'][key] if valid else None for key in (
-            'fabric_area_m2', 'laminate_epoxy_kg', 'putty_kg', *FABRIC_KEYS,
+            'fabric_area_m2', 'laminate_epoxy_kg', 'putty_kg', *FABRIC_KEYS, *SURFACE_KEYS,
         ))
         grouped[weight.group].append((result['inputs']['mechanism'], weight, values))
         scenarios.append((weight.repair_id, weight.group, result['status'], weight.count, weight.share,
@@ -111,9 +113,10 @@ def takeoff(weights, results):
         # Apply one rounding step to the group's unrounded calculated mass.
         kits = max(ceil(round(putty, 10)), minimum_kits)
         band_totals = tuple(fsum(values[i] for _, _, values in rows) for i in range(3, 7))
+        surface_totals = tuple(fsum(values[i] for _, _, values in rows) for i in range(7, 10))
         groups.append((group, mechanism, weight.diameter, weight.count, fabric, epoxy, putty,
                        weight.minimum_l, weight.yield_l, kits, kits * weight.yield_l,
-                       fsum((epoxy, kits)), *band_totals))
+                       fsum((surface_totals[2], kits)), *band_totals, *surface_totals))
     totals = []
     for label, entries in (
         ('All repairs', groups),
@@ -125,5 +128,6 @@ def takeoff(weights, results):
         fabric, epoxy, putty, combined = (fsum(row[index] for row in entries) for index in (4, 5, 6, 11))
         kits = sum(row[9] for row in entries)
         band_totals = tuple(fsum(row[i] for row in entries) for i in range(12, 16))
-        totals.append((label, repairs, fabric, epoxy, putty, kits, combined, *band_totals))
+        surface_totals = tuple(fsum(row[i] for row in entries) for i in range(16, 19))
+        totals.append((label, repairs, fabric, epoxy, putty, kits, combined, *band_totals, *surface_totals))
     return totals, groups, scenarios

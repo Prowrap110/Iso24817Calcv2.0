@@ -26,7 +26,9 @@ def test_band_counts_include_plies_and_quantity_once(widths, length, n500, n300)
     assert result['fabric_length_500_m'] == pytest.approx(n500 * 1.01 * pi)
     assert result['fabric_length_300_m'] == pytest.approx(n300 * 1.01 * pi)
     assert result['fabric_area_m2'] == pytest.approx((n500 * .5 + n300 * .3) * 1.01 * pi)
-    assert result['laminate_epoxy_kg'] == 2 * result['fabric_area_m2']
+    assert result['laminate_epoxy_kg'] == pytest.approx(1.5 * result['fabric_area_m2'])
+    assert result['repair_area_m2'] == pytest.approx(2 * pi * length / 1000)
+    assert result['primer_kg'] == pytest.approx(pi * length / 1000)
     assert result['putty_kg'] == 4
 
 

@@ -1,5 +1,10 @@
 # Changelog
 
+## 20 November 2026 — saturator and primer consumption
+
+- Estimate saturator at 1.5 kg/m² of net fabric and primer at 0.5 kg/m² of pipe surface over the full required axial repair length.
+- Expose both masses and their sum per case and in the weighted takeoff. Price all chemical components by mass.
+
 ## Weighted primary results — 18 November 2026
 
 - Show weighted population, fabric, epoxy and offered putty totals on the live CalcBatch results page.

@@ -37,9 +37,14 @@ def quantities(case, length, plies, installed_mm):
         else:
             # 2 kg through 200 mm, then +1 kg for each further started 200 mm.
             putty=1+math.ceil((case.get('zone_length_mm') or case['defect_length_mm'])/200)
+    repair_area = math.pi * case['od_mm'] * length / 1e6
+    saturator = 1.5 * area
+    primer = 0.5 * repair_area
     return dict(count_500=count_500,count_300=count_300,
-                fabric_area_m2=area*q,laminate_epoxy_kg=2*area*q,
+                fabric_area_m2=area*q,laminate_epoxy_kg=saturator*q,
                 putty_per_repair_kg=putty,putty_kg=putty*q,
-                total_epoxy_kg=(2*area+putty)*q,quantity=q,
+                repair_area_m2=repair_area*q, primer_kg=primer*q,
+                saturator_and_primer_kg=(saturator+primer)*q,
+                total_epoxy_kg=(saturator+primer+putty)*q,quantity=q,
                 fabric_length_500_m=circumference_m*count_500,
                 fabric_length_300_m=circumference_m*count_300)

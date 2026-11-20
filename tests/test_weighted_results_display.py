@@ -25,7 +25,7 @@ def test_primary_results_material_columns_sum_to_weighted_tender_total():
     assert result['I5'].value == result['I6'].value == 12
     assert result['T5'].value == 2
     assert result['T6'].value == 3
-    assert sum(result.cell(r,16).value for r in (5,6)) == pytest.approx(115.7628135329855)
+    assert sum(result.cell(r,16).value for r in (5,6)) == pytest.approx(1.5*57.88140676649275)
     assert sum(result.cell(r,17).value for r in (5,6)) == 12
     # Raw evaluator records remain single repairs for single/batch comparison.
     assert [r['results']['quantity'] for r in raw] == [1,1]
@@ -50,4 +50,4 @@ def test_live_page_headline_reports_weighted_population_and_area():
     metrics = {m.label:m.value for m in app.metric}
     assert metrics['Weighted repairs'] == '5'
     assert metrics['Total fabric'] == '57.88 m²'
-    assert metrics['Laminate epoxy'] == '115.76 kg'
+    assert metrics['Saturator'] == '86.82 kg'
